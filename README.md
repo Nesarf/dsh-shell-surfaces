@@ -1,5 +1,8 @@
 # dsh-shell-surfaces
 
+`https://github.com/Nesarf/dsh-shell-surfaces` -- a DSH plugin, installed with
+`dsh plugin --profile <profile> add github:Nesarf/dsh-shell-surfaces`.
+
 One DSH tool for the execution surfaces this machine has **besides pwsh**: a WSL
 Linux userland, nushell's structured pipelines, the MSYS2 userland
 (bash / zsh / fish / brush), and a real console for interactive programs.

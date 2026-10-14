@@ -1,0 +1,12 @@
+# dsh-shell-surfaces -- one tool for the machine's non-pwsh execution surfaces.
+#
+# It registers exactly one model-facing tool (`shell_surfaces`), because a
+# per-surface tool would spend four times the description budget to say the same
+# thing. The selection rules and the measured traps live in that tool's
+# description, not in an injected prompt section.
+#
+# Nothing here is a message hook: this row only reads ctx.tools and registers.
+- insert:
+    - id: dsh-shell-surfaces
+      name: 'dsh-shell-surfaces'
+      config: {}

@@ -173,6 +173,30 @@ equal('tool name', tool.name, 'shell_surfaces');
 check('the tool declares no field-level required (the host refuses those)', !('required' in tool.parameters));
 check('the output schema is closed', tool.output.schema.additionalProperties === false);
 check('the output schema declares no required either', !('required' in tool.output.schema));
+
+// The host's validator refuses a "type" that is an array of types, and a refusal
+// there is not a warning: the plugin does not activate at all. That is what
+// happened in the field (2026-10-15, `exitCode: ['integer','null']`), and the
+// self-test passed anyway because it never looked at the schemas' type fields.
+// Nothing in any schema may be a join of types.
+function jointTypes(node, path = '$') {
+  if (node === null || typeof node !== 'object') return [];
+  const found = [];
+  if (Array.isArray(node.type)) found.push(`${path}.type`);
+  if (node.type !== undefined && typeof node.type !== 'string') found.push(`${path}.type`);
+  for (const [key, value] of Object.entries(node)) {
+    found.push(...jointTypes(value, `${path}.${key}`));
+  }
+  return found;
+}
+equal('no schema joins types with an array', JSON.stringify([
+  ...jointTypes(tool.parameters, 'parameters'),
+  ...jointTypes(tool.output.schema, 'output.schema'),
+]), '[]');
+check(
+  'every declared field type is a single type string',
+  Object.values(tool.output.schema.properties).every((p) => typeof p.type === 'string'),
+);
 check('actions are run and surfaces', JSON.stringify(tool.parameters.properties.action.enum) === JSON.stringify(['run', 'surfaces']));
 equal(
   'the surface enum matches the table',
@@ -192,8 +216,24 @@ const badSurface = await tool.execute({ action: 'run', surface: 'nope', command:
 check('an unknown surface is refused as a result, not a throw', badSurface.ok === false && /known surfaces/.test(badSurface.message));
 const noCommand = await tool.execute({ action: 'run', surface: 'nu' });
 check('a missing command is refused', noCommand.ok === false && /command/.test(noCommand.message));
+const badAction = await tool.execute({ action: 'nonsense' });
+check('an unknown action is refused', badAction.ok === false && /action must be/.test(badAction.message));
 const listing = await tool.execute({ action: 'surfaces' });
 check('the surfaces action returns rows', listing.ok === true && Array.isArray(listing.surfaces) && listing.surfaces.length === ids.length);
+
+// Every result the tool can produce is validated by the host against this schema
+// before a reader sees it, so a field the schema does not declare is a failed
+// tool call rather than a harmless extra. Declared names only, on every path.
+const allowedNames = new Set(Object.keys(tool.output.schema.properties));
+for (const [label, result] of [
+  ['run/unknown-surface', badSurface],
+  ['run/no-command', noCommand],
+  ['unknown-action', badAction],
+  ['surfaces', listing],
+]) {
+  const strays = Object.keys(result).filter((key) => !allowedNames.has(key));
+  equal(`the ${label} result declares only declared fields`, JSON.stringify(strays), '[]');
+}
 
 // --- no judgement glyphs in the shipped files -----------------------------------
 
@@ -203,8 +243,25 @@ for (const file of ['../lib/index.js', '../lib/runner.js', '../lib/surfaces.js',
   check(`${file} carries no judgement glyphs`, !glyphs.test(text));
 }
 
+let hostSaid = 'the host validator was not exercised';
+try {
+  const { assertSupportedJsonSchema } = await import(process.env.DSH_TOOLS_MODULE ?? 'file:///E:/npm-global/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-tools/lib/index.js');
+  for (const [label, schema] of [['parameters', tool.parameters], ['output.schema', tool.output.schema]]) {
+    try {
+      assertSupportedJsonSchema(schema);
+      hostSaid = `the host validator accepted both schemas (${label} checked)`;
+    } catch (error) {
+      check(`the host validator accepts the ${label}`, false, error.message);
+    }
+  }
+} catch {
+  /* no host checkout next to this one: the shape checks above still stand */
+}
+check('the result names stay inside the schema', Object.keys(listing).every((key) => key in tool.output.schema.properties));
+
 // --- report ---------------------------------------------------------------------
 
 console.log(`surfaces-test: ${passed} passed, ${failures.length} failed`);
+console.log(`  ${hostSaid}`);
 for (const failure of failures) console.log(`  FAIL ${failure}`);
 process.exit(failures.length === 0 ? 0 : 1);

@@ -2,6 +2,7 @@
   "name": "dsh-shell-surfaces",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "The machine's other execution surfaces as one DSH tool: a WSL Linux userland, nushell's structured pipelines, the MSYS2 userland (bash/zsh/fish/brush), and a real console for interactive programs. One tool with a surface argument, so a session stops reaching for pwsh for everything.",
   "type": "module",
   "main": "./lib/index.js",

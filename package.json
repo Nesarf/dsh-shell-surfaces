@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "test": "node test/surfaces-test.mjs",
-    "audit": "node E:/DaShaoHuo/scripts/audit-plugin-messages.mjs --root ."
+    "live": "node scripts/live-check.mjs"
   },
   "dsh": {
     "bundle": {

@@ -1,7 +1,15 @@
 # dsh-shell-surfaces
 
+[![test](https://github.com/Nesarf/dsh-shell-surfaces/actions/workflows/test.yml/badge.svg)](https://github.com/Nesarf/dsh-shell-surfaces/actions/workflows/test.yml)
+[![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+
 `https://github.com/Nesarf/dsh-shell-surfaces` -- a DSH plugin, installed with
 `dsh plugin --profile <profile> add github:Nesarf/dsh-shell-surfaces`.
+
+The badge is the whole test workflow: the pure self-test, and the two-runner
+probe that asks every shell on Windows and on Linux what it is. A green badge
+therefore means "the table and the argv shape still hold, and both platforms
+still answered", not just "the linter passed".
 
 One DSH tool for the execution surfaces this machine has **besides pwsh**: a WSL
 Linux userland, nushell's structured pipelines, the MSYS2 userland

@@ -55,3 +55,6 @@ jobs:
         run: |
           ./scripts/probe-all-shells.ps1 | Out-File -Encoding utf8 probe.json
           node scripts/probe-table.mjs probe.json
+      - name: run one real command on every surface that exists here
+        shell: pwsh
+        run: node scripts/live-check.mjs

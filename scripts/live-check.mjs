@@ -1,19 +1,26 @@
-// Live check: run one real command on every surface, through the plugin's own
-// code path. Not a test of the tool registry (that needs a running host) -- a
-// test of whether each surface actually answers.
+// Live check: run one real command on every surface that exists here, through the
+// plugin's own code path. Not a test of the tool registry (that needs a running
+// host) -- a test of whether each surface actually answers.
 //
 // Usage:
-//   node scripts/live-check.mjs [surface ...]      (default: every surface)
+//   node scripts/live-check.mjs [surface ...]      (default: every surface that exists)
 //   DSH_PLUGIN_ROOT=<checkout> node scripts/live-check.mjs wsl nu pty
 //
 // Environment:
 //   DSH_PLUGIN_ROOT  where this plugin lives, so the script can be run from
 //                    anywhere. Defaults to the parent of this file's directory.
 //   DSH_PTY_GATE     the script for the pty case -- one that asks a question on
-//                    the console. Defaults to scripts/pty-gate.ps1 beside this file.
+//                    the console. Defaults to the fixture beside this file.
 //
-// The pty case is skipped when no gate script exists rather than reported as a
-// failure: a missing fixture is not a broken surface.
+// Three things are reported, not two: a surface can pass, fail, or be skipped.
+// Skipping is not failing -- a surface this machine does not have is a fact about
+// the machine, while a surface that answered with the wrong exit code is a fact
+// about the plugin. The exit code follows only the second kind, because CI needs
+// to distinguish "nothing to run here" from "something broke".
+//
+// On Linux this drives bash and sh (the surfaces a Linux runner has); on Windows
+// it drives the whole set. The pty case is Windows-only in practice: the console
+// runner talks to ConPTY through pywinpty.
 
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -21,40 +28,87 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(process.env.DSH_PLUGIN_ROOT ?? join(here, '..'));
+const isWindows = process.platform === 'win32';
 
 const { resolveSurfaces } = await import(pathToFileURL(join(root, 'lib', 'surfaces.js')).href);
 const { runSurface } = await import(pathToFileURL(join(root, 'lib', 'runner.js')).href);
 
-const gate = process.env.DSH_PTY_GATE ?? join(here, 'pty-gate.ps1');
+const ptyGate = process.env.DSH_PTY_GATE ?? join(here, isWindows ? 'pty-gate.ps1' : 'pty-gate.sh');
 
-const CASES = {
+// The command each surface is asked. Every key here must also be a key in the
+// plugin's surface table, or the loop reports "no such surface" and the case is
+// dead weight. There is deliberately no `bash` entry: this plugin's table has no
+// POSIX shell surface (that is DSH's own tool), so a case for one would only ever
+// be skipped. On Linux the table's surfaces are all absent, and the honest report
+// there is "absent", not a fabricated pass.
+const COMMON_CASES = {};
+
+const WINDOWS_CASES = {
   wsl: { command: 'uname -sr && grep -c . /proc/version' },
   nu: { command: 'ls | length | to json' },
   msys: { command: 'echo msys-$MSYSTEM-$BASH_VERSION && pacman -Q 2>/dev/null | wc -l' },
   zsh: { command: 'echo zsh-$ZSH_VERSION && a=(x y); print ${(w)#a}' },
   fish: { command: 'echo fish-$version && math "6*7"' },
   brush: { command: 'echo brush-$BASH_VERSION && echo "test" | tr a-z A-Z' },
-  pty: { command: `powershell -NoProfile -ExecutionPolicy Bypass -File ${gate}`, send: ['y\n'] },
+  pty: { command: `powershell -NoProfile -ExecutionPolicy Bypass -File ${ptyGate}`, send: ['y\n'] },
 };
 
-const wanted = process.argv.slice(2).length > 0 ? process.argv.slice(2) : Object.keys(CASES);
+// What each case must produce to count as a pass. A bare exit code is not enough:
+// `bash -c ""` also exits 0, and the failures this script exists to catch (a
+// command mangled by quoting, output decoded as the wrong encoding) are exactly
+// the ones that keep exit code 0.
+const EXPECT = {
+  wsl: { re: /Linux \d/, why: 'the kernel string came back' },
+  nu: { re: /^\s*\d+\s*$/, why: 'a structured pipeline produced a number' },
+  msys: { re: /msys-MSYS-/, why: 'MSYS2 bash answered with its MSYSTEM' },
+  zsh: { re: /zsh-\d/, why: 'zsh answered' },
+  fish: { re: /fish-\d/ , why: 'fish answered' },
+  brush: { re: /brush-\d/, why: 'brush answered' },
+  pty: { re: /door opened|door stayed shut/, why: 'the console answered its prompt' },
+};
+
+const cases = isWindows ? { ...COMMON_CASES, ...WINDOWS_CASES } : { ...COMMON_CASES };
+const wanted = process.argv.slice(2).length > 0 ? process.argv.slice(2) : Object.keys(cases);
 const surfaces = resolveSurfaces();
+
+let passed = 0;
+let failed = 0;
+let skipped = 0;
 
 for (const id of wanted) {
   const spec = surfaces[id];
-  const testCase = CASES[id];
+  const testCase = cases[id];
+  const flatten = (text, n = 300) => String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+
   if (!spec) {
-    console.log(`== ${id}: no such surface`);
+    console.log(`-- ${id}: no such surface in the table`);
+    skipped += 1;
     continue;
   }
   if (!spec.present) {
-    console.log(`== ${id}: absent (${spec.absent})`);
+    console.log(`-- ${id}: absent (${spec.absent})`);
+    skipped += 1;
     continue;
   }
-  if (id === 'pty' && !existsSync(gate)) {
-    console.log(`== ${id}: skipped -- no gate script at ${gate}`);
+  if (!testCase) {
+    console.log(`-- ${id}: present but this script has no case for it`);
+    skipped += 1;
     continue;
   }
+  if (id === 'pty' && !isWindows) {
+    // The console runner is pywinpty: on POSIX a pipe and a console are already
+    // close enough that this surface has nothing to prove there. Reported as a
+    // skip with the reason, never as a pass.
+    console.log('-- pty: skipped -- the console runner is ConPTY (pywinpty), which is Windows-only in practice');
+    skipped += 1;
+    continue;
+  }
+  if (id === 'pty' && !existsSync(ptyGate)) {
+    console.log(`-- ${id}: skipped -- no gate script at ${ptyGate}`);
+    skipped += 1;
+    continue;
+  }
+
   const started = Date.now();
   const result = await runSurface(id, spec, {
     command: testCase.command,
@@ -66,9 +120,20 @@ for (const id of wanted) {
     maxOutputChars: 4000,
   });
   const ms = Date.now() - started;
-  const flatten = (text, n = 300) => text.replace(/\s+/g, ' ').trim().slice(0, n);
-  console.log(`== ${id}: exit=${result.exitCode} timedOut=${result.timedOut} ms=${ms} spawnError=${result.spawnError || '-'}`);
-  console.log(`   stdout: ${flatten(result.stdout) || '(empty)'}`);
-  if (result.stderr) console.log(`   stderr: ${flatten(result.stderr, 200)}`);
-  if (result.note) console.log(`   note: ${result.note}`);
+
+  const expect = EXPECT[id];
+  const answered = expect ? expect.re.test(result.stdout) : result.stdout.length > 0;
+  const ok = !result.timedOut && !result.spawnError && result.exitCode === 0 && answered;
+
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${id}: exit=${result.exitCode} timedOut=${result.timedOut} ms=${ms}`);
+  console.log(`     stdout: ${flatten(result.stdout) || '(empty)'}`);
+  if (result.stderr) console.log(`     stderr: ${flatten(result.stderr, 200)}`);
+  if (ok) passed += 1;
+  else {
+    failed += 1;
+    if (expect && !answered) console.log(`     expected output matching ${expect.re} -- ${expect.why}`);
+  }
 }
+
+console.log(`\nlive-check: ${passed} passed, ${failed} failed, ${skipped} skipped`);
+process.exit(failed === 0 ? 0 : 1);

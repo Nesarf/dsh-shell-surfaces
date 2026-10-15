@@ -58,16 +58,25 @@ Each of these was measured on this machine, and each shapes the argv:
 | `lib/runner.js` | argv construction, bounded output with spill, timeout classification |
 | `scripts/pty_runner.py` | the console: pywinpty, a reader thread, ANSI stripping, one JSON report |
 | `scripts/live-check.mjs` | runs one real command per surface through the plugin's own code path |
+| `scripts/probe-all-shells.ps1` | asks every shell **and** terminal this machine has what it is; platform-shaped, one JSON object out |
+| `scripts/probe-posix.sh`, `scripts/probe-wsl.sh` | the POSIX and WSL probes, as files, because an inline command crosses quoting layers and a `$()` gets expanded by the wrong one |
+| `scripts/probe-table.mjs` | the probe's JSON as a markdown table, also written to `$GITHUB_STEP_SUMMARY` |
 | `scripts/pty-gate.ps1` | the interactive fixture: a `Read-Host` prompt for the pty case |
 | `test/surfaces-test.mjs` | the table, the argv shape, the tool contract |
 
 ## Verification
 
 ```
-node test/surfaces-test.mjs          # 55 checks, no host needed
+node test/surfaces-test.mjs          # no host needed; the host validator is asked too when reachable
 node scripts/live-check.mjs          # one real command per surface on this machine
 node scripts/live-check.mjs wsl nu   # or only some of them
+pwsh -File scripts/probe-all-shells.ps1 | node scripts/probe-table.mjs   # every shell and terminal
 ```
+
+CI runs the self-test, and runs the probe on both a Windows and a Linux runner
+(the tables land in the run summary, so "which surfaces exist" is a record with
+history rather than something a person measured once).
+
 
 Every surface was also run for real (2026-10-15): wsl returned the kernel and a
 `/proc` count, nu returned a number through a structured pipeline, msys returned

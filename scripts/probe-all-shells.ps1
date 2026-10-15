@@ -25,7 +25,22 @@
 
 $ErrorActionPreference = 'Continue'
 
-$cases = @(
+# The surface list is platform-shaped on purpose: this script is run both on this
+# machine and on a CI runner, and a list that only knows Windows would answer a
+# Linux runner with twelve "not found" lines, which reads as a broken script
+# rather than as an honest report about a machine that has no cmd.exe.
+$posixCases = @(
+  @{ n = 'bash';       exe = 'bash';  a = @('-lc', 'echo $BASH_VERSION $(uname -o)') }
+  @{ n = 'sh';         exe = 'sh';    a = @('-c', 'echo sh-ok $(uname -o)') }
+  @{ n = 'dash';       exe = 'dash';  a = @('-c', 'echo dash-ok') }
+  @{ n = 'zsh';        exe = 'zsh';   a = @('-c', 'echo $ZSH_VERSION') }
+  @{ n = 'fish';       exe = 'fish';  a = @('-c', 'echo $version') }
+  @{ n = 'nushell';    exe = 'nu';    a = @('--no-config-file', '-c', 'version | get version') }
+  @{ n = 'coreutils';  exe = 'ls';    a = @('--version') }
+  @{ n = 'grep -P';    exe = 'grep';  a = @('-P', '-c', '.', '/proc/version') }
+)
+
+$windowsCases = @(
   @{ n = 'cmd.exe';        exe = 'C:\Windows\System32\cmd.exe';                    a = @('/c', 'ver') }
   @{ n = 'powershell 5.1'; exe = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'; a = @('-NoProfile', '-Command', '$PSVersionTable.PSVersion.ToString()') }
   @{ n = 'pwsh 7';         exe = 'C:\Program Files\PowerShell\7\pwsh.exe';         a = @('-NoProfile', '-Command', '$PSVersionTable.PSVersion.ToString()') }
@@ -39,6 +54,20 @@ $cases = @(
   @{ n = 'nushell';        exe = "$env:LOCALAPPDATA\Programs\nu\bin\nu.exe";       a = @('--no-config-file', '-c', 'version | get version') }
   @{ n = 'WSL probe (file)'; exe = 'wsl.exe';                                      a = @('-d', 'Nyarch', '--', 'bash', '/mnt/e/dsh-home/plugins/dsh-shell-surfaces/scripts/probe-wsl.sh') }
 )
+
+# The POSIX entries that this machine can also answer through its own Windows-side
+# shells: git-bash runs probe-posix.sh by absolute path, so its $() is expanded by
+# bash and not by the layer that launched it. `sh` is deliberately absent --
+# resolving the bare name `sh` on Windows finds C:\Windows\System32\sh.exe, which
+# is not a Unix shell at all (measured: it answers "not on PATH: sh" from a job
+# but exists on disk), and a probe that silently tests the wrong program is worse
+# than one that omits it.
+$windowsPosixCases = @(
+  @{ n = 'git-bash (file)'; exe = 'C:\Program Files\Git\bin\bash.exe'; a = @("$PSScriptRoot/probe-posix.sh") }
+)
+
+if ($env:OS -eq 'Windows_NT') { $cases = @($windowsCases) + $windowsPosixCases }
+else { $cases = @($posixCases) }
 
 $results = foreach ($case in $cases) {
   $job = Start-Job -ScriptBlock {

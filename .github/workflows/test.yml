@@ -1,10 +1,19 @@
 name: test
 
-# The self-test is pure: it reads the surface table and the argv builder and
-# asserts the shape of both, so it needs no host, no DSH, and no dependency
-# install (this package has none). It runs on Linux on purpose -- the surfaces it
-# drives are Windows-only, and a Linux runner is where "the checks are portable"
-# stops being a claim and becomes a job result.
+# Two jobs, because they answer different questions.
+#
+# `self-test` is pure: it asserts the surface table and the argv shape, so it
+# needs no host, no DSH, and no install (this package has no dependencies). It runs
+# on Linux on purpose -- the surfaces it drives are Windows-only, so a Linux
+# runner is where "the checks are portable" stops being a claim.
+#
+# `surfaces` runs the real probe on both platforms and asks every shell it can
+# find what version it is. On Windows that is twelve surfaces and six terminals;
+# on Linux it is the POSIX ones, because the script is platform-shaped, and a
+# Windows-only list would answer a Linux runner with twelve "not found" lines --
+# which reads as a broken script instead of an honest report. The tables land in
+# the run summary, so "which surfaces exist" becomes a record with history rather
+# than something a person measured once.
 
 on:
   push:
@@ -28,3 +37,21 @@ jobs:
         run: node scripts/which-surfaces.mjs
       - name: self-test
         run: node test/surfaces-test.mjs
+
+  surfaces:
+    name: surfaces on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: ask every shell on this runner what it is
+        shell: pwsh
+        run: |
+          ./scripts/probe-all-shells.ps1 | Out-File -Encoding utf8 probe.json
+          node scripts/probe-table.mjs probe.json

@@ -12,7 +12,7 @@
 //
 // Run: node test/surfaces-test.mjs
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveSurfaces, surfaceSpecs } from '../lib/surfaces.js';
 import { buildArgv, toWslPath } from '../lib/runner.js';
@@ -122,6 +122,18 @@ check(
   'resolution reports presence as a boolean and a reason when absent',
   Object.values(surfaces).every((s) => typeof s.present === 'boolean' && s.absent),
 );
+
+// A bare command name has to be resolved against PATH, not assumed present. CI
+// caught this: a Linux runner used to report wsl as available because `wsl.exe`
+// was taken as given, and a surface that claims to be available on a machine
+// that cannot run it is worse than one that says nothing.
+function onPath(name) {
+  const dirs = (process.env.PATH ?? '').split(process.platform === 'win32' ? ';' : ':').filter(Boolean);
+  const exts = process.platform === 'win32' ? ['.EXE', '.CMD', '.BAT', ''] : [''];
+  return dirs.some((dir) => exts.some((ext) => existsSync(join(dir, name + ext))));
+}
+equal('wsl.exe presence follows PATH, not an assumption', surfaces.wsl.present, onPath('wsl.exe'));
+equal('python presence follows PATH', surfaces.pty.present, onPath('python'));
 
 // --- the tool contract ----------------------------------------------------------
 

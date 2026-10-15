@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   self-test:
-    name: self-test on node 20
+    name: self-test on node 24
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

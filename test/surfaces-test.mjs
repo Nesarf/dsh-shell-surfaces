@@ -13,6 +13,7 @@
 // Run: node test/surfaces-test.mjs
 
 import { existsSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { resolveSurfaces, surfaceSpecs } from '../lib/surfaces.js';
 import { buildArgv, toWslPath } from '../lib/runner.js';
@@ -123,17 +124,36 @@ check(
   Object.values(surfaces).every((s) => typeof s.present === 'boolean' && s.absent),
 );
 
-// A bare command name has to be resolved against PATH, not assumed present. CI
-// caught this: a Linux runner used to report wsl as available because `wsl.exe`
-// was taken as given, and a surface that claims to be available on a machine
-// that cannot run it is worse than one that says nothing.
-function onPath(name) {
-  const dirs = (process.env.PATH ?? '').split(process.platform === 'win32' ? ';' : ':').filter(Boolean);
-  const exts = process.platform === 'win32' ? ['.EXE', '.CMD', '.BAT', ''] : [''];
-  return dirs.some((dir) => exts.some((ext) => existsSync(join(dir, name + ext))));
+// A bare command name has to be resolved against the shell's own lookup, not
+// assumed and not guessed from a directory walk. CI caught the difference: a
+// Linux runner used to report wsl as available because `wsl.exe` was taken as
+// given, and on Windows the walk through PATH missed it while `where.exe` found
+// it in the same breath -- the file is a reparse point.
+function resolvable(name) {
+  const probe =
+    process.platform === 'win32'
+      ? { command: 'where.exe', args: [name] }
+      : { command: 'sh', args: ['-c', `command -v ${JSON.stringify(name)} >/dev/null 2>&1`] };
+  try {
+    return spawnSync(probe.command, probe.args, { stdio: 'ignore', timeout: 5000 }).status === 0;
+  } catch {
+    return false;
+  }
 }
-equal('wsl.exe presence follows PATH, not an assumption', surfaces.wsl.present, onPath('wsl.exe'));
-equal('python presence follows PATH', surfaces.pty.present, onPath('python'));
+check('a name that resolves nowhere is refused, so presence is not assumed', resolvable('this-command-does-not-exist-xyz') === false);
+if (surfaces.pty.present) {
+  check(
+    'a surface reported present is actually resolvable',
+    resolvable('python') || resolvable('python3'),
+    'python is on PATH but neither name resolves',
+  );
+}
+check(
+  'a path-shaped surface follows the filesystem, a bare one follows the shell lookup',
+  Object.values(surfaces).every((spec) =>
+    /[\\/]/.test(spec.exe) ? spec.present === existsSync(spec.exe) : spec.present === resolvable(spec.exe),
+  ),
+);
 
 // --- the tool contract ----------------------------------------------------------
 

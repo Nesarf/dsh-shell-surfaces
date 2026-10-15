@@ -86,14 +86,20 @@ CI runs the self-test, and runs the probe on both a Windows and a Linux runner
 history rather than something a person measured once). Each runner also runs this
 live check against every surface it actually has.
 
-That last step reports three outcomes, not two: **pass**, **fail**, and
-**skipped**. A surface a machine does not have is a fact about the machine; a
-surface that answered with the wrong exit code or the wrong output is a fact about
-the plugin. Only the second kind fails the job, because a runner that has nothing
-to run is not a broken build. A pass also needs the expected *output*, not just
-exit code 0 -- `bash -c ""` exits 0, and the failures this check exists to catch
-(a command mangled by quoting, output decoded as the wrong encoding) are exactly
-the ones that keep exit code 0.
+That last step reports four outcomes, not two: **pass**, **fail**, **absent** and
+**skipped**. A surface a machine does not have is a fact about the machine
+(`absent`, with the path that was looked for); a surface that exists but cannot be
+exercised here -- a WSL launcher with no distribution, a python without pywinpty --
+is also a fact about the machine (`skipped`, with the reason). A surface that ran
+and answered wrongly is a fact about the plugin, and only that fails the job,
+because a runner with nothing to run is not a broken build.
+
+A pass also needs the expected *output*, not just exit code 0: `bash -c ""` exits
+0, and the failures this check exists to catch (a command mangled by quoting,
+output decoded as the wrong encoding) are exactly the ones that keep exit code 0.
+
+Its table goes into the run summary beside the probe's, so "this runner is missing
+half the surfaces, and here is why" is answerable without opening the log.
 
 
 Every surface was also run for real (2026-10-15): wsl returned the kernel and a

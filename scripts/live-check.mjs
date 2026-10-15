@@ -22,7 +22,7 @@
 // it drives the whole set. The pty case is Windows-only in practice: the console
 // runner talks to ConPTY through pywinpty.
 
-import { existsSync } from 'node:fs';
+import { appendFileSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -113,51 +113,44 @@ if (wanted.length === 0) {
   process.exit(0);
 }
 
-let passed = 0;
-let failed = 0;
-let skipped = 0;
+const flatten = (text, n = 300) => String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
+const rows = [];
+const tally = { pass: 0, fail: 0, absent: 0, skip: 0 };
 
 for (const id of wanted) {
   const spec = surfaces[id];
   const testCase = cases[id];
-  const flatten = (text, n = 300) => String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 
   if (!spec) {
-    console.log(`-- ${id}: no such surface in the table`);
-    skipped += 1;
+    rows.push({ id, state: 'skip', detail: 'no such surface in the table', ms: '' });
+    tally.skip += 1;
     continue;
   }
   if (!spec.present) {
-    console.log(`-- ${id}: absent (${spec.absent})`);
-    skipped += 1;
+    rows.push({ id, state: 'absent', detail: spec.absent, ms: '' });
+    tally.absent += 1;
     continue;
   }
-  if (!testCase) {
-    console.log(`-- ${id}: present but this script has no case for it`);
-    skipped += 1;
-    continue;
-  }
-  if (id === 'pty' && !isWindows) {
-    // The console runner is pywinpty: on POSIX a pipe and a console are already
-    // close enough that this surface has nothing to prove there. Reported as a
-    // skip with the reason, never as a pass.
-    console.log('-- pty: skipped -- the console runner is ConPTY (pywinpty), which is Windows-only in practice');
-    skipped += 1;
-    continue;
-  }
-  if (id === 'wsl' && !hasWslDistro(spec)) {
-    console.log('-- wsl: skipped -- wsl.exe is on PATH but reports no distribution installed');
-    skipped += 1;
-    continue;
-  }
-  if (id === 'pty' && !hasPywinpty()) {
-    console.log('-- pty: skipped -- the python on PATH cannot import winpty');
-    skipped += 1;
-    continue;
-  }
-  if (id === 'pty' && !existsSync(ptyGate)) {
-    console.log(`-- ${id}: skipped -- no gate script at ${ptyGate}`);
-    skipped += 1;
+
+  // Reasons a surface is present but cannot be exercised here. Each one is about
+  // the machine, and each is printed with its reason rather than counted as a
+  // failure -- a check that calls an absent environment "broken" teaches its
+  // reader to ignore failures.
+  const skipReason =
+    !testCase
+      ? 'present, but this script has no case for it'
+      : id === 'pty' && !isWindows
+        ? 'the console runner is ConPTY (pywinpty), Windows-only in practice'
+        : id === 'wsl' && !hasWslDistro(spec)
+          ? 'wsl.exe is on PATH but reports no distribution installed'
+          : id === 'pty' && !hasPywinpty()
+            ? 'the python on PATH cannot import winpty'
+            : id === 'pty' && !existsSync(ptyGate)
+              ? `no gate script at ${ptyGate}`
+              : '';
+  if (skipReason) {
+    rows.push({ id, state: 'skip', detail: skipReason, ms: '' });
+    tally.skip += 1;
     continue;
   }
 
@@ -175,31 +168,61 @@ for (const id of wanted) {
 
   // Second line of defence for the same distinction: if a surface answers with a
   // message about the machine rather than about the command, that is an absent
-  // environment, not a failure of the plugin. The pre-checks above should have
-  // caught it; this catches the case where the probe passed and the run still hit
-  // a machine-level condition (a distro that vanished, a library that moved).
-  const environmentMissing = /WSL_E_DISTRO_NOT_FOUND|no distribution|is not importable|ModuleNotFoundError/i.test(
-    result.stdout + result.stderr,
-  );
-  if (environmentMissing && result.exitCode !== 0) {
-    console.log(`-- ${id}: skipped -- the environment cannot run it: ${flatten(result.stdout + ' ' + result.stderr, 120)}`);
-    skipped += 1;
+  // environment, not a plugin failure. The pre-checks above should have caught
+  // it; this catches the run that still hit a machine-level condition.
+  if (
+    result.exitCode !== 0 &&
+    /WSL_E_DISTRO_NOT_FOUND|no distribution|is not importable|ModuleNotFoundError/i.test(result.stdout + result.stderr)
+  ) {
+    rows.push({ id, state: 'skip', detail: flatten(`${result.stdout} ${result.stderr}`, 120), ms: String(ms) });
+    tally.skip += 1;
     continue;
   }
 
   const expect = EXPECT[id];
   const answered = expect ? expect.re.test(result.stdout) : result.stdout.length > 0;
   const ok = !result.timedOut && !result.spawnError && result.exitCode === 0 && answered;
+  const shown = flatten(result.stdout) || '(empty)';
 
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${id}: exit=${result.exitCode} timedOut=${result.timedOut} ms=${ms}`);
-  console.log(`     stdout: ${flatten(result.stdout) || '(empty)'}`);
+  console.log(`     stdout: ${shown}`);
   if (result.stderr) console.log(`     stderr: ${flatten(result.stderr, 200)}`);
-  if (ok) passed += 1;
-  else {
-    failed += 1;
-    if (expect && !answered) console.log(`     expected output matching ${expect.re} -- ${expect.why}`);
+  if (ok) {
+    rows.push({ id, state: 'pass', detail: shown, ms: String(ms) });
+    tally.pass += 1;
+  } else {
+    const why = result.timedOut
+      ? 'timed out'
+      : result.spawnError
+        ? `could not start: ${result.spawnError}`
+        : expect && !answered
+          ? `output did not match ${expect.re} -- ${expect.why}`
+          : `exit code ${result.exitCode}`;
+    rows.push({ id, state: 'fail', detail: why, ms: String(ms) });
+    tally.fail += 1;
+    console.log(`     ${why}`);
   }
 }
 
-console.log(`\nlive-check: ${passed} passed, ${failed} failed, ${skipped} skipped`);
-process.exit(failed === 0 ? 0 : 1);
+if (process.env.GITHUB_STEP_SUMMARY) {
+  // The console output is the record; this is the table a reader skims. It says
+  // the same thing in one place, and it is why "the runner is missing half the
+  // surfaces" is answerable without opening the log.
+  const lines = [
+    '',
+    '### Live check: one real command per surface',
+    '',
+    `- platform: ${process.platform}`,
+    `- ${tally.pass} passed, ${tally.fail} failed, ${tally.absent} absent, ${tally.skip} skipped`,
+    '',
+    '| surface | result | detail | ms |',
+    '| --- | --- | --- | ---: |',
+  ];
+  for (const row of rows) {
+    lines.push(`| ${row.id} | ${row.state} | ${row.detail.replace(/\|/g, '\\|').slice(0, 160)} | ${row.ms} |`);
+  }
+  appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
+}
+
+console.log(`\nlive-check: ${tally.pass} passed, ${tally.fail} failed, ${tally.absent} absent, ${tally.skip} skipped`);
+process.exit(tally.fail === 0 ? 0 : 1);

@@ -82,6 +82,13 @@ $results = foreach ($case in $cases) {
     $sw = [Diagnostics.Stopwatch]::StartNew()
     try {
       $out = & $exe @argv 2>&1 | Out-String
+      # Some Windows tools answer in UTF-16LE. Decoded as bytes that reads as
+      # "T\0h\0e\0r\0e..." and, put into JSON, it is unreadable and long: CI
+      # caught exactly this from wsl.exe on a runner that has the launcher but no
+      # distribution ("There is no distribution..."). Dropping the NULs is not a
+      # translation -- the ASCII range survives it intact -- and it keeps the
+      # report a report.
+      if ($out.IndexOf([char]0) -ge 0) { $out = $out -replace "`0", '' }
       [pscustomobject]@{ ms = $sw.ElapsedMilliseconds; out = ($out -replace '\s+', ' ').Trim() }
     } catch {
       [pscustomobject]@{ ms = $sw.ElapsedMilliseconds; out = "ERROR: $($_.Exception.Message)" }

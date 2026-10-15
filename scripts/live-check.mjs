@@ -221,7 +221,14 @@ if (process.env.GITHUB_STEP_SUMMARY) {
   for (const row of rows) {
     lines.push(`| ${row.id} | ${row.state} | ${row.detail.replace(/\|/g, '\\|').slice(0, 160)} | ${row.ms} |`);
   }
-  appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
+  const table = `${lines.join('\n')}\n`;
+  appendFileSync(process.env.GITHUB_STEP_SUMMARY, table);
+  // Also to the log, and not only to the summary. A writer that leaves no trace
+  // in the log is indistinguishable from one that failed -- I could not tell from
+  // the API whether the summary was empty because nothing was written or because
+  // I was reading the wrong field, and that ambiguity cost a round trip. Printing
+  // it settles that question in the same place the rest of the evidence lives.
+  console.log(table);
 }
 
 console.log(`\nlive-check: ${tally.pass} passed, ${tally.fail} failed, ${tally.absent} absent, ${tally.skip} skipped`);

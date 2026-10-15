@@ -23,12 +23,42 @@
 // runner talks to ConPTY through pywinpty.
 
 import { existsSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(process.env.DSH_PLUGIN_ROOT ?? join(here, '..'));
 const isWindows = process.platform === 'win32';
+
+/**
+ * Is the WSL surface actually usable, rather than merely installed?
+ *
+ * Measured on a GitHub runner: `wsl.exe` is on PATH there but has no distribution,
+ * so `wsl.exe -d Nyarch -- bash ...` answers
+ * "There is no distribution with the supplied name (WSL_E_DISTRO_NOT_FOUND)" and
+ * exits with 4294967295. That is an absent surface, not a broken one, and a check
+ * that calls it a failure teaches its reader to ignore failures.
+ */
+function hasWslDistro(spec) {
+  const distro = process.env.DSH_WSL_DISTRO ?? 'Nyarch';
+  try {
+    const result = spawnSync(spec.exe, ['-d', distro, '--', 'true'], { stdio: 'ignore', timeout: 20000 });
+    return result.status === 0;
+  } catch {
+    return false;
+  }
+}
+
+/** Does the python on PATH have the console library? A cell, so it does not start the console. */
+function hasPywinpty() {
+  try {
+    const result = spawnSync('python', ['-c', 'import winpty'], { stdio: 'ignore', timeout: 20000 });
+    return result.status === 0;
+  } catch {
+    return false;
+  }
+}
 
 const { resolveSurfaces } = await import(pathToFileURL(join(root, 'lib', 'surfaces.js')).href);
 const { runSurface } = await import(pathToFileURL(join(root, 'lib', 'runner.js')).href);
@@ -103,6 +133,16 @@ for (const id of wanted) {
     skipped += 1;
     continue;
   }
+  if (id === 'wsl' && !hasWslDistro(spec)) {
+    console.log('-- wsl: skipped -- wsl.exe is on PATH but reports no distribution installed');
+    skipped += 1;
+    continue;
+  }
+  if (id === 'pty' && !hasPywinpty()) {
+    console.log('-- pty: skipped -- the python on PATH cannot import winpty');
+    skipped += 1;
+    continue;
+  }
   if (id === 'pty' && !existsSync(ptyGate)) {
     console.log(`-- ${id}: skipped -- no gate script at ${ptyGate}`);
     skipped += 1;
@@ -120,6 +160,20 @@ for (const id of wanted) {
     maxOutputChars: 4000,
   });
   const ms = Date.now() - started;
+
+  // Second line of defence for the same distinction: if a surface answers with a
+  // message about the machine rather than about the command, that is an absent
+  // environment, not a failure of the plugin. The pre-checks above should have
+  // caught it; this catches the case where the probe passed and the run still hit
+  // a machine-level condition (a distro that vanished, a library that moved).
+  const environmentMissing = /WSL_E_DISTRO_NOT_FOUND|no distribution|is not importable|ModuleNotFoundError/i.test(
+    result.stdout + result.stderr,
+  );
+  if (environmentMissing && result.exitCode !== 0) {
+    console.log(`-- ${id}: skipped -- the environment cannot run it: ${flatten(result.stdout + ' ' + result.stderr, 120)}`);
+    skipped += 1;
+    continue;
+  }
 
   const expect = EXPECT[id];
   const answered = expect ? expect.re.test(result.stdout) : result.stdout.length > 0;

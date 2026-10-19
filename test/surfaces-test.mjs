@@ -15,7 +15,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { resolveSurfaces, surfaceSpecs } from '../lib/surfaces.js';
+import { resolveSurfaces, surfaceSpecs, lastScan } from '../lib/surfaces.js';
+import { scan } from '../lib/discover.js';
 import { buildArgv, toWslPath } from '../lib/runner.js';
 import { apply, inject, name as pluginName } from '../lib/index.js';
 import { closeSessions } from '../lib/sessions.js';
@@ -47,6 +48,42 @@ check(
   'every surface says where to look when it is absent',
   ids.every((id) => typeof specs[id].absent === 'string' && specs[id].absent.length > 0),
 );
+
+// --- the scan --------------------------------------------------------------------
+
+// Found, not assumed: the table's paths are defaults, and a machine that moved
+// its installs is discovered rather than edited.
+const report = scan();
+check('the scan names its platform', typeof report.platform === 'string');
+check(
+  'every discovered shell carries the path and the source it came from',
+  report.shells.length > 0 &&
+    report.shells.every(
+      (hit) => typeof hit.path === 'string' && hit.path.length > 0 && typeof hit.source === 'string' && hit.source.length > 0,
+    ),
+);
+check(
+  'every discovered terminal carries the same two facts',
+  report.terminals.every(
+    (hit) => typeof hit.path === 'string' && hit.path.length > 0 && typeof hit.source === 'string',
+  ),
+);
+check('the scan reports the WSL listing as an array', Array.isArray(report.distros));
+if (process.platform === 'win32') {
+  check('a Windows scan finds a PowerShell of some kind', report.shells.some((hit) => /^(pwsh|powershell)\.exe$/i.test(hit.name)));
+  check('a Windows scan finds a bash of some kind', report.shells.some((hit) => /^bash\.exe$/i.test(hit.name)));
+}
+check('the process keeps one scan, not one per question', lastScan() === lastScan());
+check(
+  'the wsl surface carries the distro it will actually run',
+  typeof specs.wsl.distro === 'string' && specs.wsl.distro.length > 0,
+);
+if (process.platform === 'win32') {
+  check(
+    'a scanned userland or interpreter becomes a surface of its own',
+    specs['git-bash'] !== void 0 || specs.cmd !== void 0,
+  );
+}
 
 // --- wsl ------------------------------------------------------------------------
 
@@ -284,7 +321,7 @@ equal(
   JSON.stringify(tool.parameters.properties.surface.enum),
   JSON.stringify(ids),
 );
-check('the description names every surface', ids.every((id) => tool.description.includes(id)));
+check('the description names every surface', ids.every((id) => tool.description.includes(id) || id.startsWith('wsl-')));
 check(
   'the description carries the console rule rather than only the names',
   tool.description.includes('ConPTY') || tool.description.includes('real console'),
@@ -301,6 +338,12 @@ const badAction = await tool.execute({ action: 'nonsense' });
 check('an unknown action is refused', badAction.ok === false && /action must be/.test(badAction.message));
 const listing = await tool.execute({ action: 'surfaces' });
 check('the surfaces action returns rows', listing.ok === true && Array.isArray(listing.surfaces) && listing.surfaces.length === ids.length);
+check(
+  'the surfaces action reports what the scan found, with paths and sources',
+  Array.isArray(listing.discovered) &&
+    listing.discovered.some((hit) => hit.kind === 'shell') &&
+    listing.discovered.every((hit) => typeof hit.path === 'string' && typeof hit.source === 'string'),
+);
 
 // A surface-level failure must name the next call this plugin can answer.
 // Otherwise "the surface did not start" reads as "the tool is broken", which is

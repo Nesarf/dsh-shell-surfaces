@@ -88,6 +88,30 @@ prints without a prompt. A session runs one command at a time, so the job flags
 are refused with it, and `pty` has no session at all: a console transcript is
 read while the program is alive.
 
+## Finding this machine's shells
+
+The table is a set of defaults, and the scan is what makes them true on a
+machine that moved its installs. The model is borrowed from
+mega-index-map's `library_detect`: a built-in candidate table (shell names, the
+usual install roots, the WSL launcher) resolved against PATH and this machine's
+own locations, with every hit carrying where it was found. A scan costs one
+PATH listing per directory plus a few `stat` calls and one `wsl -l -q` -- it is
+not a walk of the drive.
+
+What the scan adds to the table:
+
+| Found | Becomes |
+|---|---|
+| a WSL distribution other than the default | its own `wsl-<distro>` surface |
+| a Git-for-Windows or Cygwin bash | a `git-bash` surface (the MSYS2 one keeps `msys`) |
+| `cmd.exe` | a `cmd` surface (`cmd /c`) |
+| a terminal program (`wt`, `mintty`, `wezterm`, ...) | reported in `action="surfaces"` under `discovered`, not a surface: a terminal draws text, it does not interpret commands |
+
+`action="surfaces"` answers with both halves: the surfaces this tool can run
+now, and the `discovered` report (kind, name, path, source) the scan produced.
+A discovered path also replaces a guessed default, so a machine whose
+PowerShell lives outside `Program Files` still answers.
+
 ## Why one tool and not seven
 
 Every registered tool spends part of the context on its description. Seven tools
@@ -153,6 +177,7 @@ Each of these was measured on this machine, and each shapes the argv:
 | `SandboxProvider.confine` wraps argv, not a command line | the surface's exact argv (program, flags, command) is what gets wrapped, so nothing re-parses it |
 | An approval grants one call, not a session | a wider mode is consumed by the call that asked; the next call starts from the standing policy |
 | A shell reading a pipe prints no prompt | a random nonce line ends each session command's output; the command's own text can never be mistaken for the marker |
+| A scan that walks the drive is the thing it must never become | the candidate table is the whole search space: PATH, the usual install roots, and one `wsl -l -q` |
 
 ## Layout
 
@@ -162,6 +187,7 @@ Each of these was measured on this machine, and each shapes the argv:
 | `lib/sessions.js` | the persistent session pool: one marker-delimited command at a time, per (owner, surface, name) |
 | `lib/client.js` | the client half: the `tool.call.toolview` row that renders as `<surface> · <activity>`, in the module system's own bundle format |
 | `lib/surfaces.js` | the table: paths, arguments, environments, and the absent-reason for each surface |
+| `lib/discover.js` | the scan: shell names, install roots and the WSL listing, each hit with its source |
 | `lib/runner.js` | argv construction, bounded output with spill, timeout classification |
 | `scripts/pty_runner.py` | the console: pywinpty, a reader thread, ANSI stripping, one JSON report |
 | `scripts/live-check.mjs` | runs one real command per surface through the plugin's own code path |
@@ -239,3 +265,8 @@ its arithmetic result, brush an uppercased string, and pty answered a
   `msys`). A surface without one says so and names the surfaces that have it.
   A session is process-local: it does not survive a harness restart, and plugin
   disposal ends every one of them.
+* The scan runs once per process: a shell installed while the host is running
+  appears after a restart, and `action="surfaces"` reports the scan this process
+  is using.
+* Terminal programs are reported, never run: `pty` is the one console this tool
+  drives, and `discovered` only says the others exist.

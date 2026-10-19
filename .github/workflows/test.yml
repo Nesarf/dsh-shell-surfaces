@@ -35,6 +35,8 @@ jobs:
           node-version: '24'
       - name: report which surfaces this runner can see
         run: node scripts/which-surfaces.mjs
+      - name: install the declared dev dependency (the sandbox seam)
+        run: npm install --no-audit --no-fund
       - name: self-test
         run: node test/surfaces-test.mjs
 

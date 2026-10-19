@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "description": "The machine's other execution surfaces as one DSH tool: a WSL Linux userland, nushell's structured pipelines, the MSYS2 userland (bash/zsh/fish/brush), and a real console for interactive programs. One tool with a surface argument, so a session stops reaching for pwsh for everything.",
+  "description": "The machine's execution surfaces as one DSH tool: a WSL Linux userland, nushell's structured pipelines, the MSYS2 userland (bash/zsh/fish/brush), PowerShell itself, and a real console for interactive programs. Background jobs, timeout promotion, sandbox escalation and persistent sessions ride the same call, so a session stops reaching for another shell tool.",
   "type": "module",
   "main": "./lib/index.js",
   "exports": {
@@ -40,6 +40,9 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-sandbox": "0.2.0-rc.2"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh": ">=0.2.0-rc.2 <0.3.0-0",

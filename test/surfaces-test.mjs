@@ -319,33 +319,39 @@ if (surfaces.pwsh.present) {
 // This is that capability here: the call returns a registry id, the spec carries
 // this plugin's kind, and the process streams into the job ring from its first
 // byte.
-const background = await tool.execute({
-  action: 'run',
-  surface: 'pwsh',
-  command: 'Write-Output done',
-  run_in_background: true,
-  description: 'background probe',
-});
-check(
-  'a background run returns a job id instead of an exit status',
-  background.ok === true && typeof background.jobId === 'string' && /background job/.test(background.message),
-);
-check(
-  'the job is registered under this plugin kind',
-  jobsService.started.length === 1 && jobsService.started[0].spec.kind === 'shell-surfaces',
-);
-check('the description becomes the job label', jobsService.started[0].spec.label === 'background probe');
-await jobsService.started[0].hooks.done;
-check(
-  'the job streamed the command output into the ring',
-  jobsService.started[0].appended.some((chunk) => String(chunk.text).includes('done')),
-);
+if (surfaces.pwsh.present) {
+  const background = await tool.execute({
+    action: 'run',
+    surface: 'pwsh',
+    command: 'Write-Output done',
+    run_in_background: true,
+    description: 'background probe',
+  });
+  check(
+    'a background run returns a job id instead of an exit status',
+    background.ok === true && typeof background.jobId === 'string' && /background job/.test(background.message),
+  );
+  if (background.ok === true) {
+    check(
+      'the job is registered under this plugin kind',
+      jobsService.started.length === 1 && jobsService.started[0].spec.kind === 'shell-surfaces',
+    );
+    check('the description becomes the job label', jobsService.started[0].spec.label === 'background probe');
+    await jobsService.started[0].hooks.done;
+    check(
+      'the job streamed the command output into the ring',
+      jobsService.started[0].appended.some((chunk) => String(chunk.text).includes('done')),
+    );
+  }
+}
 
-const ptyBackground = await tool.execute({ action: 'run', surface: 'pty', command: 'cmd /c ver', run_in_background: true });
-check(
-  'the console refuses background work with a sentence',
-  ptyBackground.ok === false && /cannot run in the background/.test(ptyBackground.message),
-);
+if (surfaces.pty.present) {
+  const ptyBackground = await tool.execute({ action: 'run', surface: 'pty', command: 'cmd /c ver', run_in_background: true });
+  check(
+    'the console refuses background work with a sentence',
+    ptyBackground.ok === false && /cannot run in the background/.test(ptyBackground.message),
+  );
+}
 
 // --- a promoted timeout ----------------------------------------------------------
 
@@ -453,17 +459,19 @@ if (surfaces.pwsh.present) {
   );
 }
 
-const noSandboxEscalation = await tool.execute({
-  action: 'run',
-  surface: 'pwsh',
-  command: 'Get-Date',
-  sandbox_permissions: 'workspace-write',
-  justification: 'whatever',
-});
-check(
-  'an escalation without a mounted policy is refused as a result',
-  noSandboxEscalation.ok === false && /not available/.test(noSandboxEscalation.message),
-);
+if (surfaces.pwsh.present) {
+  const noSandboxEscalation = await tool.execute({
+    action: 'run',
+    surface: 'pwsh',
+    command: 'Get-Date',
+    sandbox_permissions: 'workspace-write',
+    justification: 'whatever',
+  });
+  check(
+    'an escalation without a mounted policy is refused as a result',
+    noSandboxEscalation.ok === false && /not available/.test(noSandboxEscalation.message),
+  );
+}
 
 // --- a persistent session -------------------------------------------------------
 
@@ -491,11 +499,13 @@ if (surfaces.pwsh.present) {
   closeSessions();
 }
 
-const noSession = await tool.execute({ action: 'run', surface: 'wsl', command: 'ls', session: 'x' });
-check(
-  'a surface without sessions refuses one and names the surfaces that have them',
-  noSession.ok === false && /no persistent session/.test(noSession.message) && /pwsh/.test(noSession.message),
-);
+if (surfaces.wsl.present) {
+  const noSession = await tool.execute({ action: 'run', surface: 'wsl', command: 'ls', session: 'x' });
+  check(
+    'a surface without sessions refuses one and names the surfaces that have them',
+    noSession.ok === false && /no persistent session/.test(noSession.message) && /pwsh/.test(noSession.message),
+  );
+}
 
 // Every result the tool can produce is validated by the host against this schema
 // before a reader sees it, so a field the schema does not declare is a failed

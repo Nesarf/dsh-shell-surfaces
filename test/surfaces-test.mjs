@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import { resolveSurfaces, surfaceSpecs } from '../lib/surfaces.js';
 import { buildArgv, toWslPath } from '../lib/runner.js';
 import { apply, inject, name as pluginName } from '../lib/index.js';
+import { closeSessions } from '../lib/sessions.js';
 
 let passed = 0;
 const failures = [];
@@ -38,7 +39,7 @@ function equal(label, actual, expected) {
 
 const specs = surfaceSpecs();
 const ids = Object.keys(specs);
-for (const required of ['wsl', 'nu', 'msys', 'zsh', 'fish', 'brush', 'pty']) {
+for (const required of ['wsl', 'nu', 'msys', 'zsh', 'fish', 'brush', 'pwsh', 'pty']) {
   check(`table has the ${required} surface`, required in specs);
 }
 check('every surface carries a summary and a guide', ids.every((id) => specs[id].summary && specs[id].guide));
@@ -115,6 +116,28 @@ const ptyTokenized = buildArgv('pty', specs.pty, {
 const tokenized = JSON.parse(Buffer.from(ptyTokenized.argv[ptyTokenized.argv.indexOf('--argv-json') + 1], 'base64').toString('utf8'));
 check('a quoted command keeps its quoted argument whole', JSON.stringify(tokenized) === JSON.stringify(['cmd', '/c', 'echo hello world']));;
 
+// --- pwsh -----------------------------------------------------------------------
+
+// PowerShell is a surface here so that "fall back to PowerShell" stays inside
+// this plugin instead of becoming "use the other tool". The facts that shape
+// its argv: a command line needs -Command, a script file needs -File (otherwise
+// the path is parsed as a command), and both must be non-interactive so a
+// profile cannot write to the pipe this runner is reading.
+const pwshArgv = buildArgv('pwsh', specs.pwsh, { command: 'Get-Date', script: '', cwd: '', send: [] });
+check('pwsh gets a command flag', pwshArgv.argv.includes('-Command'));
+check('pwsh runs non-interactive', pwshArgv.argv.includes('-NoProfile') && pwshArgv.argv.includes('-NonInteractive'));
+check('pwsh command is one element', pwshArgv.argv.at(-1) === 'Get-Date');
+check('pwsh puts its flags before the command', pwshArgv.argv.indexOf('-Command') === pwshArgv.argv.length - 2);
+const pwshScript = buildArgv('pwsh', specs.pwsh, {
+  command: '',
+  script: 'E:\\DaShaoHuo\\cache\\tmp\\check.ps1',
+  cwd: '',
+  send: [],
+});
+check('a pwsh script is handed over as a file, not a command line', pwshScript.argv.includes('-File') && !pwshScript.argv.includes('-Command'));
+equal('the script path is the final element', pwshScript.argv.at(-1), 'E:\\DaShaoHuo\\cache\\tmp\\check.ps1');
+equal('the script flag is the one declared for files', pwshScript.argv.at(-2), '-File');
+
 // --- resolution -----------------------------------------------------------------
 
 const surfaces = resolveSurfaces();
@@ -159,15 +182,73 @@ check(
 
 equal('plugin name', pluginName, 'dsh-shell-surfaces');
 check('plugin injects the tools service', Array.isArray(inject) && inject.includes('tools'));
+check('plugin injects the prompt service (it registers the selection rule)', inject.includes('systemPrompt'));
 
 const registered = [];
+const sections = [];
+// A stand-in for ctx.jobs: it records the spec, runs the producer the way the
+// real registry does (the starter owns the process), and exposes the appended
+// output so a test can read what the job would have streamed.
+const jobsService = {
+  started: [],
+  start(spec) {
+    const id = `shell-surfaces-${this.started.length + 1}`;
+    const record = { id, spec, appended: [] };
+    this.started.push(record);
+    record.hooks = spec.run({
+      id,
+      append: (text, options) => record.appended.push({ text, channel: options?.channel }),
+      updateProgress: () => {},
+    });
+    return id;
+  },
+};
 const ctx = {
   effect: (fn) => fn(),
   tools: { register: (t) => registered.push(t) },
+  systemPrompt: {
+    section: (section) => sections.push(section),
+    // The real allocation the pwsh rule uses is 1010; a rule placed at
+    // TOOL_BASH (1000) is read first, which is the whole point.
+    getSectionOrder: (name) => (name === 'TOOL_BASH' ? 1000 : 9999),
+  },
+  get: (name) => (name === 'jobs' ? jobsService : void 0),
   logger: { warn: () => {} },
 };
 apply(ctx, {});
 equal('exactly one tool is registered', registered.length, 1);
+equal('exactly one prompt section is registered', sections.length, 1);
+equal('the section is named for this tool', sections[0].name, 'tool:shell-surfaces');
+equal('the section is placed at the shell-rule position, ahead of pwsh', sections[0].order, 1000);
+check(
+  'the section says which tool is the first choice',
+  typeof sections[0].text === 'string' && sections[0].text.includes('first choice') && sections[0].text.includes('shell_surfaces'),
+);
+check(
+  'the section keeps pwsh work on this tool, not on a separate tool',
+  typeof sections[0].text === 'string' && /pwsh` surface/.test(sections[0].text) && !/genuinely PowerShell/.test(sections[0].text),
+);
+check(
+  'the section narrows the built-in pwsh tool to the terminal-session shape',
+  typeof sections[0].text === 'string' &&
+    /a terminal session/.test(sections[0].text) &&
+    /a drawn prompt/.test(sections[0].text) &&
+    !/a persistent session/.test(sections[0].text),
+);
+check(
+  'the section tells a command aimed at another shell tool to come here',
+  /belongs here instead/.test(sections[0].text) &&
+    /foreground, background, timeout promotion/.test(sections[0].text) &&
+    /sessions are all on this tool/.test(sections[0].text),
+);
+check(
+  'the section teaches the sandbox escalation instead of a workaround',
+  /sandbox_permissions/.test(sections[0].text) && /never work around the fence/.test(sections[0].text),
+);
+check(
+  'the section keeps a surface failure inside this tool',
+  typeof sections[0].text === 'string' && /do not change tools/.test(sections[0].text) && /action="surfaces"/.test(sections[0].text),
+);
 const tool = registered[0];
 equal('tool name', tool.name, 'shell_surfaces');
 check('the tool declares no field-level required (the host refuses those)', !('required' in tool.parameters));
@@ -220,6 +301,201 @@ const badAction = await tool.execute({ action: 'nonsense' });
 check('an unknown action is refused', badAction.ok === false && /action must be/.test(badAction.message));
 const listing = await tool.execute({ action: 'surfaces' });
 check('the surfaces action returns rows', listing.ok === true && Array.isArray(listing.surfaces) && listing.surfaces.length === ids.length);
+
+// A surface-level failure must name the next call this plugin can answer.
+// Otherwise "the surface did not start" reads as "the tool is broken", which is
+// exactly the reading that sends a session back to another shell tool.
+if (surfaces.pwsh.present) {
+  const timedOut = await tool.execute({ action: 'run', surface: 'pwsh', command: 'Start-Sleep -Seconds 5', timeout_ms: 1000 });
+  check(
+    'a timeout comes with the next call to make inside this tool',
+    timedOut.timedOut === true && /action="surfaces"/.test(timedOut.message),
+  );
+}
+
+// --- background work, on this same tool ----------------------------------------
+
+// "Use the built-in shell tool for a job" used to be the only way to get one.
+// This is that capability here: the call returns a registry id, the spec carries
+// this plugin's kind, and the process streams into the job ring from its first
+// byte.
+const background = await tool.execute({
+  action: 'run',
+  surface: 'pwsh',
+  command: 'Write-Output done',
+  run_in_background: true,
+  description: 'background probe',
+});
+check(
+  'a background run returns a job id instead of an exit status',
+  background.ok === true && typeof background.jobId === 'string' && /background job/.test(background.message),
+);
+check(
+  'the job is registered under this plugin kind',
+  jobsService.started.length === 1 && jobsService.started[0].spec.kind === 'shell-surfaces',
+);
+check('the description becomes the job label', jobsService.started[0].spec.label === 'background probe');
+await jobsService.started[0].hooks.done;
+check(
+  'the job streamed the command output into the ring',
+  jobsService.started[0].appended.some((chunk) => String(chunk.text).includes('done')),
+);
+
+const ptyBackground = await tool.execute({ action: 'run', surface: 'pty', command: 'cmd /c ver', run_in_background: true });
+check(
+  'the console refuses background work with a sentence',
+  ptyBackground.ok === false && /cannot run in the background/.test(ptyBackground.message),
+);
+
+// --- a promoted timeout ----------------------------------------------------------
+
+if (surfaces.pwsh.present) {
+  const startedBefore = jobsService.started.length;
+  const promoted = await tool.execute({
+    action: 'run',
+    surface: 'pwsh',
+    command: 'Start-Sleep -Seconds 5; Write-Output late',
+    timeout_ms: 1000,
+    promote_on_timeout: true,
+  });
+  check(
+    'a promoted timeout returns a job id instead of losing the process',
+    promoted.ok === true && promoted.promoted === true && typeof promoted.jobId === 'string',
+  );
+  check('the promoted process is registered as a job', jobsService.started.length === startedBefore + 1);
+  // Leave nothing running: cancelling is what a caller would do, and it also
+  // proves the hooks reach the live process.
+  const record = jobsService.started.at(-1);
+  record.hooks.cancel('test cleanup');
+  await record.hooks.done;
+}
+
+// --- the sandbox seam -----------------------------------------------------------
+
+// A confined run wraps the exact argv the surface would spawn and reports the
+// mode in the vocabulary the built-in shell tools use. The provider here wraps
+// nothing (a real runner would not exist on this machine), but every call it
+// receives is recorded, which is the contract that matters.
+const confinedCalls = [];
+const approvalRequests = [];
+const registeredSandbox = [];
+let approvalOutcome = 'allowed-once';
+const ctxSandbox = {
+  effect: (fn) => fn(),
+  tools: { register: (t) => registeredSandbox.push(t) },
+  systemPrompt: { section: () => {}, getSectionOrder: () => 1000 },
+  get: (name) =>
+    ({
+      jobs: jobsService,
+      sandbox: {
+        confine: (argv, policy) => {
+          confinedCalls.push({ argv, policy });
+          return Promise.resolve({ argv, enforcement: 'full', denialSignatures: ['EPERM'], runnerFailureRules: [] });
+        },
+      },
+      sandboxPolicy: { resolve: () => ({ mode: 'read-only', workspaceRoot: 'E:\\work' }) },
+      approval: {
+        request: (request) => {
+          approvalRequests.push(request);
+          return Promise.resolve(approvalOutcome);
+        },
+      },
+    })[name],
+  logger: { warn: () => {} },
+};
+apply(ctxSandbox, {});
+const sandboxTool = registeredSandbox[0];
+const execStub = { agent: { id: 's1', session: { id: 's1' } }, callId: 'c1', signal: new AbortController().signal };
+
+if (surfaces.pwsh.present) {
+  const confinedRun = await sandboxTool.execute({ action: 'run', surface: 'pwsh', command: 'Get-Date' }, execStub);
+  check(
+    'a confined run reports its mode and enforcement',
+    confinedRun.sandbox?.mode === 'read-only' && confinedRun.sandbox.enforcement === 'full' && confinedRun.sandbox.denied === false,
+  );
+  check(
+    'the provider wrapped the exact argv, not a command line',
+    Array.isArray(confinedCalls.at(-1)?.argv) && confinedCalls.at(-1).argv.includes('-Command'),
+  );
+
+  const escalated = await sandboxTool.execute(
+    {
+      action: 'run',
+      surface: 'pwsh',
+      command: 'Get-Date',
+      sandbox_permissions: 'workspace-write',
+      justification: 'need to write the report',
+    },
+    execStub,
+  );
+  check('an approved escalation confines this call under the wider mode', escalated.sandbox?.mode === 'workspace-write');
+  check(
+    'the approval carries the justification',
+    approvalRequests.length === 1 && /need to write the report/.test(approvalRequests[0].reason),
+  );
+  check('the escalated call is the one that ran wider', confinedCalls.at(-1).policy.mode === 'workspace-write');
+
+  approvalOutcome = 'rejected';
+  const rejected = await sandboxTool.execute(
+    {
+      action: 'run',
+      surface: 'pwsh',
+      command: 'Get-Date',
+      sandbox_permissions: 'danger-full-access',
+      justification: 'needs full access',
+    },
+    execStub,
+  );
+  approvalOutcome = 'allowed-once';
+  check(
+    'a rejected escalation stops before the command runs',
+    rejected.ok === false && /rejected/.test(rejected.message) && !('stdout' in rejected),
+  );
+}
+
+const noSandboxEscalation = await tool.execute({
+  action: 'run',
+  surface: 'pwsh',
+  command: 'Get-Date',
+  sandbox_permissions: 'workspace-write',
+  justification: 'whatever',
+});
+check(
+  'an escalation without a mounted policy is refused as a result',
+  noSandboxEscalation.ok === false && /not available/.test(noSandboxEscalation.message),
+);
+
+// --- a persistent session -------------------------------------------------------
+
+if (surfaces.pwsh.present) {
+  const sessionExec = { agent: { id: 'session-owner', session: { id: 'session-owner' } }, callId: 'c1' };
+  const first = await tool.execute({ action: 'run', surface: 'pwsh', command: '$dss = 41', session: 'state' }, sessionExec);
+  check('a session call reports its name', first.ok === true && first.session === 'state');
+  const second = await tool.execute({ action: 'run', surface: 'pwsh', command: '$dss + 1', session: 'state' }, sessionExec);
+  check('the next call sees the previous command state', /42/.test(String(second.stdout)));
+
+  const mixed = await tool.execute(
+    { action: 'run', surface: 'pwsh', command: '$dss', session: 'state', run_in_background: true },
+    sessionExec,
+  );
+  check(
+    'a session refuses the job flags with a sentence',
+    mixed.ok === false && /one command at a time/.test(mixed.message),
+  );
+
+  const reset = await tool.execute(
+    { action: 'run', surface: 'pwsh', command: '$dss', session: 'state', session_reset: true },
+    sessionExec,
+  );
+  check('a reset starts a fresh session', reset.ok === true && !/42/.test(String(reset.stdout)));
+  closeSessions();
+}
+
+const noSession = await tool.execute({ action: 'run', surface: 'wsl', command: 'ls', session: 'x' });
+check(
+  'a surface without sessions refuses one and names the surfaces that have them',
+  noSession.ok === false && /no persistent session/.test(noSession.message) && /pwsh/.test(noSession.message),
+);
 
 // Every result the tool can produce is validated by the host against this schema
 // before a reader sees it, so a field the schema does not declare is a failed

@@ -11,9 +11,9 @@ probe that asks every shell on Windows and on Linux what it is. A green badge
 therefore means "the table and the argv shape still hold, and both platforms
 still answered", not just "the linter passed".
 
-One DSH tool for the execution surfaces this machine has **besides pwsh**: a WSL
-Linux userland, nushell's structured pipelines, the MSYS2 userland
-(bash / zsh / fish / brush), and a real console for interactive programs.
+One DSH tool for the execution surfaces this machine has: a WSL Linux userland,
+nushell's structured pipelines, the MSYS2 userland (bash / zsh / fish / brush),
+PowerShell itself, and a real console for interactive programs.
 
 It exists because a rule that is only written down is not a capability. The
 selection rules for these surfaces have been recorded for a while, but a session
@@ -25,8 +25,68 @@ shell_surfaces(action="surfaces")                    what exists here, and where
 shell_surfaces(action="run", surface="wsl",  command="grep -P '(?<=Linux )[0-9.]+' /proc/version")
 shell_surfaces(action="run", surface="nu",   command="open data.json | where n > 3 | to json")
 shell_surfaces(action="run", surface="msys", command="pacman -Q | wc -l")
+shell_surfaces(action="run", surface="pwsh", command="Get-CimInstance Win32_OperatingSystem | Select-Object Caption")
 shell_surfaces(action="run", surface="pty",  command="powershell -File install.ps1", send=["y\n"])
 ```
+
+## PowerShell is a surface here
+
+"Fall back to pwsh" used to mean "leave this tool and use the other one". The
+`pwsh` surface closes that gap: a PowerShell command is an ordinary call here,
+the same shape as every other surface, so a session that hits an awkward
+surface does not have to change its tool to get a PowerShell job done.
+
+What this surface deliberately does **not** carry, and the built-in `pwsh` tool
+does, is approval and sandbox escalation, and a persistent session. Those are
+reasons to use that tool and not this surface -- but "the command is PowerShell"
+is not one of them.
+
+A surface-level failure is also not a reason to change tools. When a surface is
+absent, cannot spawn, or times out, the tool says so and names the next call
+(`action="surfaces"`) that stays inside this plugin; the failure is about the
+surface, not about the tool.
+
+## Background work stays here too
+
+`run_in_background: true` starts the command as a job and returns its id: the
+output ring streams it, `job_output` reads it, `job_kill` stops it. No timeout
+applies. `promote_on_timeout: true` turns a timeout into that same job instead of
+killing the process -- the output collected before the budget expired is handed
+over exactly once, and the rest keeps streaming.
+
+That is why the built-in `pwsh` tool now covers only approval/sandbox escalation
+and the persistent session: the job machinery no longer sends a session back to
+it. A composition without the `jobs` service gets a refusal sentence for a
+background request rather than a job nobody can collect, and the `pty` surface
+has no background mode at all, because a console transcript is read while the
+program is alive.
+
+## The same sandbox as the built-in shell tools
+
+A confined deployment confines this tool too. Each call resolves the session's
+policy through `ctx.sandboxPolicy`, wraps the exact argv it is about to spawn
+through `ctx.sandbox.confine`, and reports the mode, enforcement and denial facts
+in the same vocabulary the built-in shell tools use. `danger-full-access` never
+consults the provider, and a composition without the sandbox services runs
+exactly as before.
+
+A file effect the mode denies is a policy answer, not a command failure.
+`sandbox_permissions` plus `justification` asks `ctx.approval` for exactly one
+wider call -- the grant is consumed by that call and never persisted -- and an
+escalation that is refused, cancelled or has no approval channel stops before
+anything runs. The same-turn denial hint rides the tool result, so the sanctioned
+retry does not depend on recalling the description.
+
+## Persistent sessions
+
+Pass `session: <name>` to run a command inside one long-lived shell per (agent,
+surface, name): the current directory, variables and modules persist across
+calls, and `session_reset: true` starts a fresh one. The session is a process
+with a pipe, not a terminal -- a random nonce line marks where one command's
+output ends, which is the only signal every supported shell (`pwsh`, `msys`)
+prints without a prompt. A session runs one command at a time, so the job flags
+are refused with it, and `pty` has no session at all: a console transcript is
+read while the program is alive.
 
 ## Why one tool and not seven
 
@@ -36,10 +96,41 @@ structured pipe, which for a Linux-only tool, which for a program that waits for
 input -- live in this one description, and a session reads them exactly when it
 is choosing.
 
+This tool is the **first choice** for running a command, not a fallback for
+"exceptional" cases: a job that needs a Linux tool, a POSIX pipeline, another
+shell language, a structured pipe, a real console -- or PowerShell itself --
+belongs on its surface. One prompt section says that, placed ahead of the pwsh
+rule, because a tool description only speaks once the catalogue is already open.
+Wrapping another shell inside a `pwsh` command line stays the thing to avoid: the
+extra quoting layer is where paths get mangled.
+
+## The row a call renders as
+
+A `shell_surfaces` call used to render as the wire tool name --
+"工具调用 · shell_surfaces · wsl" -- which names the catalogue entry rather than
+the machine surface or the command. The plugin now ships a client half
+(`lib/client.js`) that registers a `tool.call.toolview` row for this tool, so a
+call reads as the sentence it is:
+
+```
+WSL · grep -P '(?<=Linux )[0-9.]+' /proc/version      完成 · 120ms
+zsh · ls                                            1 · 12ms
+conPTY · cmd /c ver                                  运行中
+shells · 列出可用 surface                             完成
+```
+
+The surface name is at the head, the activity beside it, the exit status at the
+end, and the captured output one click away. That is a client concern rather
+than a host result: the pending row must already name its surface before any
+output exists. Nothing patches a first-party package -- `tool.call.toolview` is
+the supported keyed seam, and the stock row remains the fallback for every other
+tool.
+
 ## What it is not
 
-* **No prompt injection and no message hooks.** It registers a tool and nothing
-  else, so it cannot be the plugin that writes a malformed message.
+* **No message hooks.** It registers a tool, a prompt section and a client row;
+  the message stream is not touched, so it cannot be the plugin that writes a
+  malformed message.
 * **No terminal emulator.** A terminal emulator draws text for a person and adds
   nothing a subprocess can use. The one surface that needs a console talks to
   ConPTY directly.
@@ -56,12 +147,20 @@ Each of these was measured on this machine, and each shapes the argv:
 | `PtyProcess.read` blocks | Reading happens on its own thread; a read loop that also decides when to stop can block the very check that would stop it |
 | A console wants Enter, which is a carriage return | `send` normalises a trailing newline (real, escaped, or literal) to CR, and a bare answer gets one added |
 | `wsl.exe` sometimes prints the result and then declines to exit | A timeout **with** output is reported differently from a timeout **without** it; `wsl.exe --shutdown` is the reset (measured: a cold instance answered in 58 s, the same call after a reset in 8 s, and warm in 0.13 s) |
+| PowerShell parses what follows `-Command` as a command line, so a script path handed that way is a command, not a file | a script gets `-File`, a command line gets `-Command`; both always run `-NoProfile -NonInteractive` |
+| pwsh 7 and Windows PowerShell 5.1 both answer UTF-8 through a pipe (measured 2026-10-15) | the runner's single UTF-8 decode needs no per-surface exception |
+| The job registry accepts each chunk through `job.append`, not through a `read` source | the producer pushes bytes as they arrive, and a promoted process flushes what it already produced exactly once |
+| `SandboxProvider.confine` wraps argv, not a command line | the surface's exact argv (program, flags, command) is what gets wrapped, so nothing re-parses it |
+| An approval grants one call, not a session | a wider mode is consumed by the call that asked; the next call starts from the standing policy |
+| A shell reading a pipe prints no prompt | a random nonce line ends each session command's output; the command's own text can never be mistaken for the marker |
 
 ## Layout
 
 | Path | What it is |
 | --- | --- |
-| `lib/index.js` | the tool: one `shell_surfaces`, actions `run` and `surfaces` |
+| `lib/index.js` | the tool: one `shell_surfaces` (run, surfaces, background, promote, sandbox escalation, sessions) and the selection-rule prompt section |
+| `lib/sessions.js` | the persistent session pool: one marker-delimited command at a time, per (owner, surface, name) |
+| `lib/client.js` | the client half: the `tool.call.toolview` row that renders as `<surface> · <activity>`, in the module system's own bundle format |
 | `lib/surfaces.js` | the table: paths, arguments, environments, and the absent-reason for each surface |
 | `lib/runner.js` | argv construction, bounded output with spill, timeout classification |
 | `scripts/pty_runner.py` | the console: pywinpty, a reader thread, ANSI stripping, one JSON report |
@@ -70,12 +169,14 @@ Each of these was measured on this machine, and each shapes the argv:
 | `scripts/probe-posix.sh`, `scripts/probe-wsl.sh` | the POSIX and WSL probes, as files, because an inline command crosses quoting layers and a `$()` gets expanded by the wrong one |
 | `scripts/probe-table.mjs` | the probe's JSON as a markdown table, also written to `$GITHUB_STEP_SUMMARY` |
 | `scripts/pty-gate.ps1` | the interactive fixture: a `Read-Host` prompt for the pty case |
-| `test/surfaces-test.mjs` | the table, the argv shape, the tool contract |
+| `test/surfaces-test.mjs` | the table, the argv shape, the tool contract, the prompt section |
+| `test/client-bundle-test.mjs` | the bundle format, the keyed row registration, and the sentence the row says in every call phase |
 
 ## Verification
 
 ```
 node test/surfaces-test.mjs          # no host needed; the host validator is asked too when reachable
+node test/client-bundle-test.mjs     # the real client bundle behind a fake module loader
 node scripts/live-check.mjs          # one real command per surface on this machine
 node scripts/live-check.mjs wsl nu   # or only some of them
 pwsh -File scripts/probe-all-shells.ps1 | node scripts/probe-table.mjs   # every shell and terminal
@@ -120,3 +221,21 @@ its arithmetic result, brush an uppercased string, and pty answered a
 * The MSYS2 surfaces need `DSH_MSYS_ROOT` if MSYS2 is not at `D:\msys64`;
   nushell needs `DSH_NU` if `nu.exe` is not in `%LOCALAPPDATA%\Programs\nu\bin`;
   the pty surface needs `python` on PATH with `pywinpty` installed.
+* The `pwsh` surface is PowerShell 7 (`pwsh.exe`) by default; a machine with
+  only Windows PowerShell sets `DSH_PWSH=powershell.exe`.
+* The `pwsh` surface can run in the foreground or as a background job
+  (`run_in_background`), and can keep a timeout alive (`promote_on_timeout`).
+  Approval/sandbox escalation and the persistent session stay with the built-in
+  `pwsh` tool -- that tool is the right one when the machinery is the task.
+* Background work and promotion need the `jobs` service. A composition without
+  it gets a refusal sentence instead of a job nobody can read, and the `pty`
+  surface has no background mode at all: a console transcript has to be read
+  while the program is alive.
+* The sandbox seam is optional: without `ctx.sandbox` and `ctx.sandboxPolicy`
+  nothing is confined, exactly as before. When it is mounted, confinement covers
+  every surface, including `wsl` and `msys`; a surface the runner cannot launch
+  under confinement reports the sandbox problem rather than running unconfined.
+* Sessions exist for the surfaces that can read commands from stdin (`pwsh`,
+  `msys`). A surface without one says so and names the surfaces that have it.
+  A session is process-local: it does not survive a harness restart, and plugin
+  disposal ends every one of them.

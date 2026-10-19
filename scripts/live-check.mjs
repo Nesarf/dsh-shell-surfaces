@@ -80,6 +80,11 @@ const WINDOWS_CASES = {
   zsh: { command: 'echo zsh-$ZSH_VERSION && a=(x y); print ${(w)#a}' },
   fish: { command: 'echo fish-$version && math "6*7"' },
   brush: { command: 'echo brush-$BASH_VERSION && echo "test" | tr a-z A-Z' },
+  // PowerShell is a surface here, so "fall back to PowerShell" no longer means
+  // leaving this plugin. The case checks both halves: the shell identifies
+  // itself (major version) and arithmetic runs, so a profile or argument-order
+  // regression cannot pass as a healthy shell.
+  pwsh: { command: '$PSVersionTable.PSVersion.Major.ToString() + ":" + (6*7)' },
   pty: { command: `powershell -NoProfile -ExecutionPolicy Bypass -File ${ptyGate}`, send: ['y\n'] },
 };
 
@@ -94,6 +99,7 @@ const EXPECT = {
   zsh: { re: /zsh-\d/, why: 'zsh answered' },
   fish: { re: /fish-\d/ , why: 'fish answered' },
   brush: { re: /brush-\d/, why: 'brush answered' },
+  pwsh: { re: /^\s*\d+:42\s*$/m, why: 'PowerShell answered with its major version and arithmetic' },
   pty: { re: /door opened|door stayed shut/, why: 'the console answered its prompt' },
 };
 

@@ -316,11 +316,11 @@ check(
   Object.values(tool.output.schema.properties).every((p) => typeof p.type === 'string'),
 );
 check('actions are run and surfaces', JSON.stringify(tool.parameters.properties.action.enum) === JSON.stringify(['run', 'surfaces']));
-equal(
-  'the surface enum matches the table',
-  JSON.stringify(tool.parameters.properties.surface.enum),
-  JSON.stringify(ids),
+check(
+  'the surface argument stays an open string, because the scan decides the ids',
+  tool.parameters.properties.surface.type === 'string' && tool.parameters.properties.surface.enum === void 0,
 );
+check('a refresh flag is advertised for the surfaces query', tool.parameters.properties.refresh?.type === 'boolean');
 check('the description names every surface', ids.every((id) => tool.description.includes(id) || id.startsWith('wsl-')));
 check(
   'the description carries the console rule rather than only the names',
@@ -343,6 +343,13 @@ check(
   Array.isArray(listing.discovered) &&
     listing.discovered.some((hit) => hit.kind === 'shell') &&
     listing.discovered.every((hit) => typeof hit.path === 'string' && typeof hit.source === 'string'),
+);
+const rescanned = await tool.execute({ action: 'surfaces', refresh: true });
+check(
+  'a refresh re-scans and says so, and still reports both halves',
+  rescanned.ok === true &&
+    Array.isArray(rescanned.discovered) &&
+    /the scan ran again just now/.test(rescanned.message),
 );
 
 // A surface-level failure must name the next call this plugin can answer.

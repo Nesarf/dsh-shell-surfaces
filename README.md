@@ -112,6 +112,11 @@ now, and the `discovered` report (kind, name, path, source) the scan produced.
 A discovered path also replaces a guessed default, so a machine whose
 PowerShell lives outside `Program Files` still answers.
 
+`refresh: true` re-runs the scan on a surfaces query, so a shell installed since
+start-up appears without a restart. The `surface` argument is an open string for
+the same reason: the scan decides the ids, and the executor validates one against
+the scan it is holding rather than against a list fixed at registration.
+
 ## Why one tool and not seven
 
 Every registered tool spends part of the context on its description. Seven tools
@@ -265,8 +270,7 @@ its arithmetic result, brush an uppercased string, and pty answered a
   `msys`). A surface without one says so and names the surfaces that have it.
   A session is process-local: it does not survive a harness restart, and plugin
   disposal ends every one of them.
-* The scan runs once per process: a shell installed while the host is running
-  appears after a restart, and `action="surfaces"` reports the scan this process
-  is using.
+* The scan runs once per process; `refresh: true` on a surfaces query re-runs it,
+  so a shell installed later appears without a restart.
 * Terminal programs are reported, never run: `pty` is the one console this tool
   drives, and `discovered` only says the others exist.

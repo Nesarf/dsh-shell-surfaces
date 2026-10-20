@@ -1,5 +1,7 @@
 # dsh-shell-surfaces
 
+<img src="assets/dessa-sophia.jpg" alt="Dessa Sophia" width="320">
+
 [![test](https://github.com/Nesarf/dsh-shell-surfaces/actions/workflows/test.yml/badge.svg)](https://github.com/Nesarf/dsh-shell-surfaces/actions/workflows/test.yml)
 [![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 

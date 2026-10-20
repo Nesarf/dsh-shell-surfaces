@@ -6,6 +6,7 @@
   "description": "The machine's execution surfaces as one DSH tool: a WSL Linux userland, nushell's structured pipelines, the MSYS2 userland (bash/zsh/fish/brush), PowerShell itself, and a real console for interactive programs. Background jobs, timeout promotion, sandbox escalation and persistent sessions ride the same call, so a session stops reaching for another shell tool.",
   "type": "module",
   "main": "./lib/index.js",
+  "icon": "./assets/icon.png",
   "exports": {
     ".": {
       "default": "./lib/index.js"
@@ -18,6 +19,8 @@
   "files": [
     "README.md",
     "cordis.patch.yml",
+    "icon.png",
+    "assets",
     "lib",
     "scripts",
     "test"

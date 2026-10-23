@@ -270,8 +270,15 @@ Host dss-loopback
 ```
 
 `action="surfaces"` then reports `ssh-dss-loopback [remote]`, and a command
-through it answers in 367 ms. The daemon binds loopback only, accepts keys only,
-and does not survive a distribution restart -- the two lines above bring it back.
+through it answers in 367 ms. The daemon binds loopback only and accepts keys only.
+
+It can outlive a distribution restart, which is worth doing: a face that disappears
+on reboot fails the first time anyone needs it. The image runs systemd
+(`/etc/wsl.conf` sets `systemd=true`) and `sshd_config` already includes
+`/etc/ssh/sshd_config.d/`, so `systemctl enable --now sshd` is enough -- the
+drop-in above supplies the port and the key-only policy. Measured 2026-10-24 by
+`wsl --shutdown` and waking the distribution again: 15 s cold start, then
+`ssh-after-restart` with `up 0 minute`, `active`, `enabled`.
 
 A trap worth writing down: generating that key with `-N '""'` in PowerShell makes
 the two quote characters the passphrase. The symptom is not "wrong passphrase" --

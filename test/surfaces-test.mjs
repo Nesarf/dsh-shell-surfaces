@@ -24,6 +24,17 @@ import { closeSessions } from '../lib/sessions.js';
 let passed = 0;
 const failures = [];
 
+// A cold WSL instance outlasts the scan's probe budget, and a scan that gives up
+// on a distribution silently drops every `wsl-<shell>` face. That made this
+// suite report 154 or 160 depending on whether anybody had touched WSL recently
+// (measured 2026-10-24), which reads as flakiness rather than as the machine
+// fact it is. Waking the instance first costs a few seconds and makes the total
+// reproducible; the assertions about a distribution's shells still skip when the
+// machine genuinely has none.
+if (process.platform === 'win32') {
+  spawnSync('wsl.exe', ['--', 'true'], { timeout: 90000, windowsHide: true });
+}
+
 function check(label, condition, detail = '') {
   if (condition) {
     passed += 1;

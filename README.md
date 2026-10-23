@@ -92,10 +92,23 @@ Pass `session: <name>` to run a command inside one long-lived shell per (agent,
 surface, name): the current directory, variables and modules persist across
 calls, and `session_reset: true` starts a fresh one. The session is a process
 with a pipe, not a terminal -- a random nonce line marks where one command's
-output ends, which is the only signal every supported shell (`pwsh`, `msys`)
-prints without a prompt. A session runs one command at a time, so the job flags
-are refused with it, and `pty` has no session at all: a console transcript is
-read while the program is alive.
+output ends, which is the only signal every supported shell prints without a
+prompt.
+
+Three surfaces carry a session, and they get it in two different shapes:
+
+* `pwsh` and `msys` keep `exe` + a flag list (`-Command -` / `-l -s`), which is
+  the default shape.
+* `wsl` needs the **distribution on its command line** (`wsl.exe -d Nyarch --
+  bash -l -s`), so its entry builds the argv itself through `argvFor`. Measured
+  2026-10-24: `cd /tmp && export DSS_PROBE=41` then `echo "$DSS_PROBE:$(pwd)"`
+  answered `41:/tmp` -- the directory and the variable both survived.
+
+A derived `wsl-<shell>` face deliberately has **no** session: the session's argv
+is `bash -l -s`, so a session there would quietly run bash while the row claims
+elvish or ysh. A session runs one command at a time, so the job flags are refused
+with it, and `pty` has no session at all: a console transcript is read while the
+program is alive.
 
 ## Finding this machine's shells
 

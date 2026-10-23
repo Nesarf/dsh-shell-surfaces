@@ -124,6 +124,25 @@ equal('wsl script becomes a file path', wslScript.argv.at(-1), '/mnt/e/DaShaoHuo
 const wslCwd = buildArgv('wsl', specs.wsl, { command: 'pwd', script: '', cwd: 'E:\\DaShaoHuo', send: [] });
 check('wsl cwd stays a Windows path for wsl.exe to translate', wslCwd.argv.includes('E:\\DaShaoHuo'));
 
+// A wsl session keeps one login bash alive inside the distribution: the argv has
+// to carry the distribution, so it cannot be `exe` + a flag list (measured
+// 2026-10-24: `cd /tmp` then `echo "$DSS_PROBE:$(pwd)"` answered 41:/tmp).
+check(
+  'a wsl session puts the distribution on the command line',
+  (() => {
+    const argv = specs.wsl.session.argvFor(specs.wsl);
+    return argv[0] === 'wsl.exe' && argv.includes('-d') && argv.includes('--') && argv.at(-1) === '-s';
+  })(),
+);
+check('and asks bash for a stdin script rather than a command argument', specs.wsl.session.argvFor(specs.wsl).includes('-s'));
+if (specs['wsl-elvish'] !== void 0) {
+  check(
+    'a derived wsl face does not inherit the bash session',
+    specs['wsl-elvish'].session === void 0,
+    'a session there would quietly run bash while the row claims elvish',
+  );
+}
+
 // A shell that lives inside a distribution gets its own face, and its command is
 // handed to that shell rather than to bash: `exec <program> -c '<command>'` is
 // written to the same stdin script, single-quoted so the outer bash passes it
@@ -721,8 +740,16 @@ if (surfaces.pwsh.present) {
   closeSessions();
 }
 
-if (surfaces.wsl.present) {
-  const noSession = await tool.execute({ action: 'run', surface: 'wsl', command: 'ls', session: 'x' });
+// Any present shell that does NOT declare a session. wsl used to be the example
+// here, and it stopped being one when a session was added to it (measured
+// 2026-10-24); the case now asks the table for such a surface instead of naming
+// one, so adding a session somewhere never silently turns this into a passing
+// test of the wrong thing.
+const noSessionSurface = Object.entries(surfaces).find(
+  ([, spec]) => spec.present && spec.session === void 0 && spec.kind === 'shell',
+);
+if (noSessionSurface !== void 0) {
+  const noSession = await tool.execute({ action: 'run', surface: noSessionSurface[0], command: 'echo x', session: 'x' });
   check(
     'a surface without sessions refuses one and names the surfaces that have them',
     noSession.ok === false && /no persistent session/.test(noSession.message) && /pwsh/.test(noSession.message),

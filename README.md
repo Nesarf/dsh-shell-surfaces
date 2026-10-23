@@ -97,8 +97,8 @@ machine that moved its installs. The model is borrowed from
 mega-index-map's `library_detect`: a built-in candidate table (shell names, the
 usual install roots, the WSL launcher) resolved against PATH and this machine's
 own locations, with every hit carrying where it was found. A scan costs one
-PATH listing per directory plus a few `stat` calls and one `wsl -l -q` -- it is
-not a walk of the drive.
+PATH listing per directory, a few `stat` calls, one `wsl -l -q`, and one
+`command -v` inside each distribution -- it is not a walk of the drive.
 
 What the scan adds to the table:
 
@@ -108,6 +108,10 @@ What the scan adds to the table:
 | a Git-for-Windows or Cygwin bash | a `git-bash` surface (the MSYS2 one keeps `msys`) |
 | `cmd.exe` | a `cmd` surface (`cmd /c`) |
 | a terminal program (`wt`, `mintty`, `wezterm`, ...) | reported in `action="surfaces"` under `discovered`, not a surface: a terminal draws text, it does not interpret commands |
+| a terminal installed inside a distribution (`kitty`, `tmux`, `screen`) | reported with `wsl:<distro>` as its source; the Windows PATH cannot see it |
+
+The distribution probe is bounded: a cold instance that outlasts the budget
+reports nothing for that distribution instead of blocking the scan.
 
 `action="surfaces"` answers with both halves: the surfaces this tool can run
 now, and the `discovered` report (kind, name, path, source) the scan produced.

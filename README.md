@@ -119,6 +119,7 @@ What the scan adds to the table:
 | `tcsh` or BusyBox in the MSYS2 userland | surfaces of their own: `tcsh` (`-c`) and `busybox` (`sh -c`) |
 | `dash` in the MSYS2 userland | a `dash` surface: the strict POSIX sh, where a bash-ism fails instead of being forgiven |
 | a shell installed inside a distribution (`elvish`, `ksh`, `xonsh`, `mksh`, `tcsh`, BusyBox) | its own `wsl-<shell>` surface, which runs *that* shell rather than bash |
+| `oils-for-unix` in a distribution | two faces, `wsl-osh` and `wsl-ysh`: the bash-compatible half and the strict half that rejects what bash forgives |
 
 A shell that lives inside a distribution used to be reachable only by writing
 `bash -lc 'elvish -c ...'` by hand -- a wrapper the caller had to quote correctly
@@ -159,12 +160,38 @@ the scan it is holding rather than against a list fixed at registration.
 
 ## Interpreters are faces too
 
-`python` and `node` are surfaces of their own rather than something to spell out
-inside a `pwsh` call. They pass the same test every shell here passes: they take a
-command and answer with stdout and an exit code. Their `kind` is `interpreter`,
-and the guide says what makes them different -- the code travels after `-c`
-(Python) or `-e` (Node), and a pipeline belongs inside the code rather than
-around it.
+`python`, `node` and `perl` are surfaces of their own rather than something to
+spell out inside a `pwsh` call. They pass the same test every shell here passes:
+they take a command and answer with stdout and an exit code. Their `kind` is
+`interpreter`, and the guide says what makes them different -- the code travels
+after `-c` (Python), `-e` (Node), or `-e` (Perl), and a pipeline belongs inside
+the code rather than around it.
+
+Perl gets one environment entry of its own: `PERL_BADLANG=0`. Measured on this
+machine, a Perl run under the UTF-8 request warns about a locale it cannot honour
+before printing anything, and that warning arrives on stderr on every single call.
+The variable silences exactly that warning and changes nothing else.
+
+## An ssh destination is a surface
+
+The host list comes from the user's own `~/.ssh/config`, and `ssh <host>
+<command>` is already the "flags then command" argv shape every shell surface
+uses, so an ssh destination needs no new machinery: each host becomes an
+`ssh-<host>` face whose flags end with the host and whose command is the last
+argument.
+
+Two kinds of entry are dropped on purpose, because a face that fails on every
+call is worse than no face:
+
+* a host with `User git` -- that speaks the git protocol, not a shell, and the far
+  side refuses anything else. Measured on this machine: its only entry is
+  `github.com` with `User git`, so the ssh family is empty here.
+* a wildcard (`Host *.internal`) -- that is a pattern for matching, not a
+  destination that can be dialled.
+
+`BatchMode=yes` is not a preference. Without it a host that wants a password sits
+at a prompt nobody can type into, and the call reads as hung; with it, that host
+fails at once and says so.
 
 `rbash` is scanned and reported but given no face: a restricted shell refuses the
 first `cd`, `PATH` assignment or redirection, so a surface that looks like bash

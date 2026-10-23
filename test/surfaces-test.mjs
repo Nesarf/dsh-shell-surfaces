@@ -15,7 +15,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { resolveSurfaces, surfaceSpecs, lastScan, describeSurfaces, openPathFor } from '../lib/surfaces.js';
+import { resolveSurfaces, surfaceSpecs, lastScan, describeSurfaces, openPathFor, scanSshHosts } from '../lib/surfaces.js';
 import { scan } from '../lib/discover.js';
 import { buildArgv, toWslPath } from '../lib/runner.js';
 import { apply, inject, name as pluginName } from '../lib/index.js';
@@ -155,12 +155,25 @@ check(
 // An interpreter is a face the same way a shell is: it takes a command and
 // answers with stdout. What makes it a separate kind is that the flag differs
 // (`-c` for Python, `-e` for Node) and there is no pipeline to quote around.
-for (const [id, flag] of [['python', '-c'], ['node', '-e']]) {
+for (const [id, flag] of [['python', '-c'], ['node', '-e'], ['perl', '-e']]) {
   const spec = specs[id];
   if (spec === void 0) continue;
   const built = buildArgv(id, spec, { command: 'print(1)', script: '', cwd: '', send: [] });
   check(`${id} is an interpreter run with ${flag}`, built.argv.includes(flag) && spec.kind === 'interpreter');
 }
+check('perl is asked not to warn about a locale it cannot honour', specs.perl.env?.PERL_BADLANG === '0');
+
+// --- ssh destinations -----------------------------------------------------------
+
+// A `User git` host and a wildcard are not destinations a command can be sent
+// to, so neither becomes a surface. Measured on this machine: its only entry is
+// github.com with User git, which is why the ssh family is empty here.
+equal(
+  'a git-only host and a wildcard are dropped',
+  scanSshHosts('Host github.com\n  User git\nHost *.internal\n  User ops\nHost box\n  User ada\n').join(','),
+  'box',
+);
+equal('an empty config yields no destinations', scanSshHosts('').join(','), '');
 
 // --- the terminal program -------------------------------------------------------
 

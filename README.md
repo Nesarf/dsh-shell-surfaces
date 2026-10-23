@@ -95,14 +95,28 @@ with a pipe, not a terminal -- a random nonce line marks where one command's
 output ends, which is the only signal every supported shell prints without a
 prompt.
 
-Three surfaces carry a session, and they get it in two different shapes:
+Six surfaces carry a session, in three shapes:
 
-* `pwsh` and `msys` keep `exe` + a flag list (`-Command -` / `-l -s`), which is
-  the default shape.
+* `pwsh`, `msys`, `git-bash` and `zsh` keep `exe` + a flag list (`-Command -` /
+  `-l -s`), which is the default shape.
+* `dash` has no `-l` at all -- it is the strict POSIX sh by design -- so its
+  session is `-s` under the PATH the table sets.
 * `wsl` needs the **distribution on its command line** (`wsl.exe -d Nyarch --
   bash -l -s`), so its entry builds the argv itself through `argvFor`. Measured
   2026-10-24: `cd /tmp && export DSS_PROBE=41` then `echo "$DSS_PROBE:$(pwd)"`
   answered `41:/tmp` -- the directory and the variable both survived.
+
+`fish` has none, on purpose. Measured 2026-10-24: it treats stdin as a script
+**file** and waits for EOF before running any of it, so a session that writes one
+command at a time gets silence -- with `-l`, and with `-l -i` as well. It answers a
+one-shot `input:` perfectly, which is why the table only found this by trying to
+keep one alive.
+
+A derived `wsl-<shell>` face deliberately has **no** session: the session's argv
+is `bash -l -s`, so a session there would quietly run bash while the row claims
+elvish or ysh. A session runs one command at a time, so the job flags are refused
+with it, and `pty` has no session at all: a console transcript is read while the
+program is alive.
 
 A derived `wsl-<shell>` face deliberately has **no** session: the session's argv
 is `bash -l -s`, so a session there would quietly run bash while the row claims

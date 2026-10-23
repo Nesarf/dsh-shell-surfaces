@@ -86,6 +86,31 @@ check('the factory exports apply', typeof exported.apply === 'function');
 check('the factory exports inject', Array.isArray(exported.inject) && exported.inject.includes('slots'));
 check('the client declares its locale dependency', exported.inject.includes('locale'));
 
+// The tree renderer is the one piece of the client that turns a host answer into
+// structure, and a line it dropped would be invisible in a screenshot. It is
+// exported for exactly this check.
+check('the factory exports the tree renderer', typeof exported.renderTree === 'function');
+if (typeof exported.renderTree === 'function') {
+  const listingText = [
+    '- wsl [userland] available',
+    '\u251c\u2500 wsl-ksh [shell] available',
+    '\u2514\u2500 wsl-elvish [shell] available',
+    '  when: the job needs Linux',
+    '',
+  ].join('\n');
+  const tree = exported.renderTree(listingText);
+  const rows = tree.props.children;
+  equal('a listing renders one element per non-empty line', rows.length, 4);
+  equal('a root row is marked as a root', rows[0].props['data-state'], 'root');
+  equal('a child row is marked as a child', rows[1].props['data-state'], 'child');
+  equal('the last child is still a child', rows[2].props['data-state'], 'child');
+  equal('a when: line is a note', rows[3].props['data-state'], 'note');
+  check(
+    'the box-drawing characters stay in the text, so a copy keeps the shape',
+    rows[1].props.children.includes('\u251c\u2500'),
+  );
+}
+
 // --- 3. apply registers the keyed row and its dictionaries ----------------------
 
 const registrations = [];

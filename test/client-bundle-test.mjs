@@ -215,7 +215,13 @@ equal('a session call names its session', statusOf(sessionRow), '会话 state');
 
 const listing = settledCall({ action: 'surfaces' }, '7 of 7 surfaces are on this machine\n');
 equal('a listing is headed by shells, not a surface', listing.props.title, 'shells');
-equal('a listing says what it is doing', activityOf(listing), '列出可用 surface');
+// The row now carries the first clause of the answer ("32 of 32 surfaces are on
+// this machine") instead of the word "list": that count is the part worth reading
+// at a glance, and the tree itself is one click away in the expanded output.
+equal('a listing says what it found', activityOf(listing), '7 of 7 surfaces are on this machine');
+// Before an answer exists there is nothing to quote, so the row falls back to
+// saying what it is doing -- the summary is never invented.
+equal('a listing with no answer yet says what it is doing', activityOf(startCall({ action: 'surfaces' })), '列出可用 surface');
 
 const pty = startCall({ action: 'run', surface: 'pty', command: 'cmd /c ver' });
 equal('the pty surface is named as a console', pty.props.title, 'conPTY');

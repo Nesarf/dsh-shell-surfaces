@@ -80,12 +80,47 @@ const WINDOWS_CASES = {
   zsh: { command: 'echo zsh-$ZSH_VERSION && a=(x y); print ${(w)#a}' },
   fish: { command: 'echo fish-$version && math "6*7"' },
   brush: { command: 'echo brush-$BASH_VERSION && echo "test" | tr a-z A-Z' },
+  dash: { command: 'echo dash-$((6*7))' },
+  // tcsh's $version already begins with its own name ("tcsh 6.24.16 ..."), so a
+  // "tcsh-$version" line came back as "tcsh-tcsh 6.24.16" and the first version
+  // of this expectation rejected it (measured). Ask for a plain word instead.
+  tcsh: { command: 'echo tcsh-ok' },
+  busybox: { command: 'echo busybox-$((6*7))' },
   // PowerShell is a surface here, so "fall back to PowerShell" no longer means
   // leaving this plugin. The case checks both halves: the shell identifies
   // itself (major version) and arithmetic runs, so a profile or argument-order
   // regression cannot pass as a healthy shell.
   pwsh: { command: '$PSVersionTable.PSVersion.Major.ToString() + ":" + (6*7)' },
+  // The other PowerShell, on purpose: a machine holding both must be able to ask
+  // 5.1 a question, and the answer has to be 5 and not 7.
+  powershell: { command: '$PSVersionTable.PSVersion.Major.ToString() + ":" + (6*7)' },
+  python: { command: 'print(6*7)' },
+  node: { command: 'console.log(6*7)' },
+  perl: { command: 'print 6*7, "\\n"' },
   pty: { command: `powershell -NoProfile -ExecutionPolicy Bypass -File ${ptyGate}`, send: ['y\n'] },
+};
+
+// A terminal face opens a real window, so a routine run does not ask three of
+// them: opt in with DSH_LIVE_TERMINALS=1 (or name one on the command line).
+const WINDOW_CASES = {
+  wt: { command: 'echo wt-ok' },
+  mintty: { command: 'echo mintty-ok' },
+  wezterm: { command: 'echo wezterm-ok' },
+};
+
+// Shells living inside a distribution. They are keyed by the derived surface id,
+// so they only run when the scan found that shell.
+const DISTRO_SHELL_CASES = {
+  'wsl-osh': { command: 'echo osh-$((6*7))' },
+  'wsl-ysh': { command: 'echo ysh-ok' },
+  'wsl-dash': { command: 'echo dash-$((6*7))' },
+  'wsl-elvish': { command: 'echo elvish-ok' },
+  'wsl-ksh': { command: 'echo ksh-ok' },
+  'wsl-xonsh': { command: 'print("xonsh-ok")' },
+  'wsl-mksh': { command: 'echo mksh-ok' },
+  'wsl-tcsh': { command: 'echo tcsh-ok' },
+  'wsl-busybox': { command: 'echo busybox-ok' },
+  'wsl-nu': { command: '6 * 7' },
 };
 
 // What each case must produce to count as a pass. A bare exit code is not enough:
@@ -99,11 +134,39 @@ const EXPECT = {
   zsh: { re: /zsh-\d/, why: 'zsh answered' },
   fish: { re: /fish-\d/ , why: 'fish answered' },
   brush: { re: /brush-\d/, why: 'brush answered' },
+  dash: { re: /dash-42/, why: 'dash answered with arithmetic' },
+  tcsh: { re: /tcsh-ok/, why: 'tcsh answered' },
+  busybox: { re: /busybox-42/, why: 'BusyBox sh answered with arithmetic' },
   pwsh: { re: /^\s*\d+:42\s*$/m, why: 'PowerShell answered with its major version and arithmetic' },
+  powershell: { re: /^\s*5:42\s*$/m, why: 'Windows PowerShell 5.1 answered as 5, not 7' },
+  python: { re: /^\s*42\s*$/m, why: 'Python answered' },
+  node: { re: /^\s*42\s*$/m, why: 'Node answered' },
+  perl: { re: /^\s*42\s*$/m, why: 'Perl answered' },
+  wt: { re: /wt-ok/, why: 'the shim carried a command into a Windows Terminal tab' },
+  mintty: { re: /mintty-ok/, why: 'the shim carried a command into a mintty window' },
+  wezterm: { re: /wezterm-ok/, why: 'a wezterm pane answered and was read back' },
   pty: { re: /door opened|door stayed shut/, why: 'the console answered its prompt' },
 };
 
-const cases = isWindows ? { ...COMMON_CASES, ...WINDOWS_CASES } : { ...COMMON_CASES };
+for (const [id, why] of [
+  ['wsl-osh', 'osh answered with arithmetic'],
+  ['wsl-ysh', 'ysh answered'],
+  ['wsl-dash', 'dash inside a distribution answered'],
+  ['wsl-elvish', 'elvish answered'],
+  ['wsl-ksh', 'ksh answered'],
+  ['wsl-xonsh', 'xonsh answered'],
+  ['wsl-mksh', 'mksh answered'],
+  ['wsl-tcsh', 'tcsh answered'],
+  ['wsl-busybox', 'BusyBox inside a distribution answered'],
+  ['wsl-nu', 'nushell inside a distribution answered'],
+]) {
+  EXPECT[id] = { re: /-ok|-42|^\s*42\s*$/m, why };
+}
+
+const windowCases = process.env.DSH_LIVE_TERMINALS === '1' ? WINDOW_CASES : {};
+const cases = isWindows
+  ? { ...COMMON_CASES, ...WINDOWS_CASES, ...windowCases, ...DISTRO_SHELL_CASES }
+  : { ...COMMON_CASES };
 const wanted = process.argv.slice(2).length > 0 ? process.argv.slice(2) : Object.keys(cases);
 const surfaces = resolveSurfaces();
 

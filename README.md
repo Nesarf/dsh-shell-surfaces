@@ -344,8 +344,16 @@ node test/surfaces-test.mjs          # no host needed; the host validator is ask
 node test/client-bundle-test.mjs     # the real client bundle behind a fake module loader
 node scripts/live-check.mjs          # one real command per surface on this machine
 node scripts/live-check.mjs wsl nu   # or only some of them
+DSH_LIVE_TERMINALS=1 node scripts/live-check.mjs wt mintty wezterm   # the window faces, which open windows
 pwsh -File scripts/probe-all-shells.ps1 | node scripts/probe-table.mjs   # every shell and terminal
 ```
+
+The live check covers the interpreters and the shells inside a distribution as
+well, and it opts **out** of the window faces by default: a routine run should
+not put three windows on someone's screen, so `wt`, `mintty` and `wezterm` are
+exercised only when `DSH_LIVE_TERMINALS=1` or when named on the command line.
+Measured on this machine: the full default set is 24 surfaces, and the three
+window faces answer `wt-ok` / `mintty-ok` / `wezterm-ok` in 0.25 to 1.3 s.
 
 CI runs the self-test, and runs the probe on both a Windows and a Linux runner
 (the tables land in the run summary, so "which surfaces exist" is a record with

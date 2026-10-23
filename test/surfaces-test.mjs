@@ -428,8 +428,13 @@ const jobsService = {
     return id;
   },
 };
+const listeners = [];
 const ctx = {
   effect: (fn) => fn(),
+  on: (name, handler) => {
+    listeners.push({ name, handler });
+    return () => {};
+  },
   tools: { register: (t) => registered.push(t) },
   systemPrompt: {
     section: (section) => sections.push(section),
@@ -442,6 +447,17 @@ const ctx = {
 };
 apply(ctx, {});
 equal('exactly one tool is registered', registered.length, 1);
+// The pair that makes owner cleanup possible: DSH has no `agent/disposed`, so an
+// agent's session is learned at creation and acted on when the session is
+// disposed (the same direction prestep-audit reads `agent.session.id`).
+check(
+  'an agent creation is watched so its session can be recognised later',
+  listeners.some((entry) => entry.name === 'agent/created'),
+);
+check(
+  'a disposed session closes the shells of the agents that named it',
+  listeners.some((entry) => entry.name === 'session/disposed'),
+);
 equal('exactly one prompt section is registered', sections.length, 1);
 equal('the section is named for this tool', sections[0].name, 'tool:shell-surfaces');
 equal('the section is placed at the shell-rule position, ahead of pwsh', sections[0].order, 1000);

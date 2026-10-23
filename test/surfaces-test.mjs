@@ -40,7 +40,7 @@ function equal(label, actual, expected) {
 
 const specs = surfaceSpecs();
 const ids = Object.keys(specs);
-for (const required of ['wsl', 'nu', 'msys', 'zsh', 'fish', 'brush', 'pwsh', 'pty']) {
+for (const required of ['wsl', 'nu', 'msys', 'zsh', 'fish', 'brush', 'tcsh', 'busybox', 'pwsh', 'pty']) {
   check(`table has the ${required} surface`, required in specs);
 }
 check('every surface carries a summary and a guide', ids.every((id) => specs[id].summary && specs[id].guide));

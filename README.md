@@ -109,6 +109,7 @@ What the scan adds to the table:
 | `cmd.exe` | a `cmd` surface (`cmd /c`) |
 | a terminal program (`wt`, `mintty`, `wezterm`, ...) | reported in `action="surfaces"` under `discovered`, not a surface: a terminal draws text, it does not interpret commands |
 | a terminal installed inside a distribution (`kitty`, `tmux`, `screen`) | reported with `wsl:<distro>` as its source; the Windows PATH cannot see it |
+| `tcsh` or BusyBox in the MSYS2 userland | surfaces of their own: `tcsh` (`-c`) and `busybox` (`sh -c`) |
 
 The distribution probe is bounded: a cold instance that outlasts the budget
 reports nothing for that distribution instead of blocking the scan.

@@ -481,7 +481,19 @@ check(
   tool.parameters.properties.surface.type === 'string' && tool.parameters.properties.surface.enum === void 0,
 );
 check('a refresh flag is advertised for the surfaces query', tool.parameters.properties.refresh?.type === 'boolean');
-check('the description names every surface', ids.every((id) => tool.description.includes(id) || id.startsWith('wsl-')));
+// The description names what this machine can actually run: a surface whose
+// executable is missing here is counted rather than listed (its reason is what
+// action="surfaces" is for), and the ten `wsl-<shell>` faces are summarised as
+// one count because they say one thing. Measured 2026-10-24: listing all 32 ids
+// cost 3559 characters and read as a wall; grouped, it is 3457 and has the shape
+// of the choice.
+check(
+  'the description names every surface it can run here',
+  Object.entries(resolveSurfaces())
+    .filter(([, spec]) => spec.present)
+    .every(([id]) => (id.startsWith('wsl-') ? tool.description.includes('wsl-<shell>') : tool.description.includes(id))),
+);
+check('and says how many are absent rather than listing them', /absent here/.test(tool.description) || Object.values(resolveSurfaces()).every((spec) => spec.present));
 check(
   'the description carries the console rule rather than only the names',
   tool.description.includes('ConPTY') || tool.description.includes('real console'),

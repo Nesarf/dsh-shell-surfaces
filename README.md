@@ -157,6 +157,43 @@ start-up appears without a restart. The `surface` argument is an open string for
 the same reason: the scan decides the ids, and the executor validates one against
 the scan it is holding rather than against a list fixed at registration.
 
+## Interpreters are faces too
+
+`python` and `node` are surfaces of their own rather than something to spell out
+inside a `pwsh` call. They pass the same test every shell here passes: they take a
+command and answer with stdout and an exit code. Their `kind` is `interpreter`,
+and the guide says what makes them different -- the code travels after `-c`
+(Python) or `-e` (Node), and a pipeline belongs inside the code rather than
+around it.
+
+`rbash` is scanned and reported but given no face: a restricted shell refuses the
+first `cd`, `PATH` assignment or redirection, so a surface that looks like bash
+and then declines to do bash things would mislead. Shells that are merely not
+installed -- `yash`, `posh`, `oksh` -- are already in the candidate table;
+install one and the next scan reports it, and promoting it to a face is a
+two-line change.
+
+## The list is a tree
+
+`action="surfaces"` draws the table as a tree, because a userland that hosts
+several shells is one place with children:
+
+```
+- wsl [userland] available
+├─ wsl-elvish [shell] available
+├─ wsl-ksh [shell] available
+└─ wsl-busybox [shell] available
+- msys [userland] available
+├─ zsh [shell] available
+├─ fish [shell] available
+└─ dash [shell] available
+```
+
+The relation is derived (`family` / `parent` on every row) rather than written
+into each entry, so a row added later cannot forget who it hangs under. The same
+two fields travel in the structured `surfaces` array, so a client can draw the
+same shape instead of parsing the text.
+
 ## Why one tool and not seven
 
 Every registered tool spends part of the context on its description. Seven tools
@@ -203,6 +240,14 @@ tool.
 * **No terminal emulator.** A terminal emulator draws text for a person and adds
   nothing a subprocess can use. The one surface that needs a console talks to
   ConPTY directly.
+* **No window launcher.** Windows Terminal, Tabby, mintty, kitty, WezTerm and
+  gnome-terminal stay in the scan report and were deliberately given no face.
+  Measured 2026-10-24: `wt --help` opens a window and never exits, so the call sat
+  here until its 120 s budget expired, and a command launched inside a window
+  writes into that window instead of back to the caller. `git-shell` was refused
+  for its own reason: it rejects every command that is not a git
+  upload/download (`fatal: unrecognized command`). A face that cannot answer is
+  worse than a report that says it is not one.
 
 ## The facts behind the argument lists
 
@@ -211,6 +256,7 @@ Each of these was measured on this machine, and each shapes the argv:
 | Fact | Consequence |
 | --- | --- |
 | A command handed through a shell can be re-parsed twice | The command travels as **one argv element**; a script **file** is preferred over an inline string |
+| `wsl.exe` recomposes its arguments into one command line, which is parsed again inside the distribution | the command travels on **stdin** (`bash -l -s`); as an argument it lost `$VAR` values to a shell that had not defined them, and even single-quoted literals lost their value |
 | MSYS2's `/tmp` follows `TMPDIR`, which this machine passes down as a Windows path | msys / zsh / fish run as **login** shells, which normalises the environment |
 | brush has no Cygwin runtime beside it, so `/tmp` is `<drive>:\tmp` | brush gets **no** login flag and no POSIX-path assumptions; its PATH needs `usr\bin` as well as `ucrt64\bin`, or every external command fails while the shell reports a healthy version |
 | `PtyProcess.read` blocks | Reading happens on its own thread; a read loop that also decides when to stop can block the very check that would stop it |

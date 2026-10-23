@@ -15,7 +15,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { resolveSurfaces, surfaceSpecs, lastScan } from '../lib/surfaces.js';
+import { resolveSurfaces, surfaceSpecs, lastScan, describeSurfaces } from '../lib/surfaces.js';
 import { scan } from '../lib/discover.js';
 import { buildArgv, toWslPath } from '../lib/runner.js';
 import { apply, inject, name as pluginName } from '../lib/index.js';
@@ -149,6 +149,35 @@ check(
   'PowerShell 5.1 and 7 are two surfaces, not one variable',
   specs.powershell !== void 0 && specs.pwsh !== void 0 && specs.powershell.exe !== specs.pwsh.exe,
 );
+
+// --- interpreters ---------------------------------------------------------------
+
+// An interpreter is a face the same way a shell is: it takes a command and
+// answers with stdout. What makes it a separate kind is that the flag differs
+// (`-c` for Python, `-e` for Node) and there is no pipeline to quote around.
+for (const [id, flag] of [['python', '-c'], ['node', '-e']]) {
+  const spec = specs[id];
+  if (spec === void 0) continue;
+  const built = buildArgv(id, spec, { command: 'print(1)', script: '', cwd: '', send: [] });
+  check(`${id} is an interpreter run with ${flag}`, built.argv.includes(flag) && spec.kind === 'interpreter');
+}
+
+// --- the family tree ------------------------------------------------------------
+
+const resolvedTree = resolveSurfaces();
+equal('msys owns the shells installed beside it', resolvedTree.zsh.parent, 'msys');
+equal('msys is the root of its own family', resolvedTree.msys.parent, '');
+equal('the msys family is named', resolvedTree.zsh.family, 'msys2');
+if (resolvedTree['wsl-elvish'] !== void 0) {
+  equal('a shell inside a distribution hangs under wsl', resolvedTree['wsl-elvish'].parent, 'wsl');
+  equal('and belongs to the wsl family', resolvedTree['wsl-elvish'].family, 'wsl');
+}
+equal('a standalone shell has no family', resolvedTree.pwsh.family, '');
+
+const treeText = describeSurfaces(resolvedTree);
+check('the tree draws a userland child under its parent', /├─ zsh \[/.test(treeText) || /└─ zsh \[/.test(treeText));
+check('a child row carries one connector, not two dashes', !/├─ - /.test(treeText) && !/└─ - /.test(treeText));
+check('a root row still reads as a list item', /^- wsl \[/.test(treeText) || /^- msys \[/.test(treeText));
 
 // --- the MSYS family ------------------------------------------------------------
 

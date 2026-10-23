@@ -223,10 +223,19 @@ check(
   'every discovered terminal comes back with a next step',
   /shim|face|channel|session host|no cli|not a launcher/.test(openPathFor('tabby.exe')),
 );
-// Tabby has no executable entry, so a shim recipe would be advice nobody can
-// follow. Measured 2026-10-24: Electron switches only, no `-e` and no
-// `new-tab -- <program>`.
-check('Tabby is named as having no cli rather than a shim recipe', /no cli/.test(openPathFor('tabby.exe')));
+// Tabby has no `-e` and no `new-tab -- <program>`, but it does have
+// `tabby profile <name>` and a local profile carrying command+args -- so the
+// opening is a profile that runs a fixed agent plus a per-call job file
+// (measured 2026-10-24: the agent answered 45 ms after launch).
+check('Tabby is named as a face now that the profile path exists', /face: `tabby`/.test(openPathFor('tabby.exe')));
+equal('tabby is a terminal surface driven by a profile', specs.tabby.tabbyProfile, 'dss');
+check(
+  'tabby carries a job file and the agent that reads it',
+  typeof specs.tabby.jobFile === 'string' &&
+    specs.tabby.jobFile.endsWith('.json') &&
+    existsSync(join(import.meta.dirname, '..', 'scripts', 'dss-tabby-agent.mjs')) &&
+    existsSync(join(import.meta.dirname, '..', 'scripts', 'tabby-setup.mjs')),
+);
 check('git-shell gets a channel, not a shim', /channel/.test(openPathFor('git-shell')));
 check('a multiplexer is named as a session host', /session host/.test(openPathFor('tmux')));
 

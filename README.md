@@ -282,11 +282,30 @@ hopes the host cooperates.
 redirection (a plain `bash -c` from a non-restricted shell restores them), and an
 HTA host can start the shim like any other launcher.
 
-**Tabby was checked and left out.** It takes Electron switches only -- no `-e`, no
-`new-tab -- <program>` -- so carrying a command through it would mean editing a
-profile in its config per command, which is not a way to carry one. The scan still
-reports it; `openWith` says `no cli` and names the three windows that do have an
-entry.
+**Tabby needed a different opening.** It takes Electron switches only -- no `-e`,
+no `new-tab -- <program>` -- but it does have `tabby profile <name>`, and a local
+profile carries `options.command` + `options.args`. Those are static, so the
+profile names a fixed agent (`scripts/dss-tabby-agent.mjs`) once and every call
+only rewrites the job file that agent reads. `scripts/tabby-setup.mjs` writes that
+profile **into a private instance's own config** (`--user-data-dir`), never into
+the user's: `handleOpenProfile` calls `bringToFront()` on every open, so driving
+someone's Tabby would yank their window forward on every call.
+
+Two measured traps shaped it:
+
+* a bare `command: node` does not work -- Tabby starts the profile and the agent
+  never runs, so the profile names the interpreter by absolute path;
+* `cmd /c start /min` is not a way to keep the window out of the way: `start`
+  takes the quoted program path as its window TITLE and then tries to launch the
+  next word as a file, which produced a "Windows cannot find 'profile'" dialog and
+  hung the caller. The window is minimised after the fact instead, and **after the
+  answer arrives**, because `bringToFront()` un-minimises it while the profile
+  opens.
+
+`Tabby.exe profile dss` itself never returns (it blocks for the application's
+lifetime), so the launch is detached and the result file is the only thing waited
+on. Measured: the agent answers in about 45 ms, and the whole call -- including
+minimising the window -- finishes in about 4 s once the instance is warm.
 
 `action="surfaces"` carries this per program: every discovered terminal comes
 back with an `openWith` line, so "reported but not a face" is a next step rather

@@ -109,6 +109,10 @@ const WINDOW_CASES = {
   wt: { command: 'echo wt-ok' },
   mintty: { command: 'echo mintty-ok' },
   wezterm: { command: 'echo wezterm-ok' },
+  // Tabby needs the one-time profile install (`node scripts/tabby-setup.mjs`);
+  // without it this case waits out its budget and fails, which is the honest
+  // report -- the profile is a configuration a person has to accept once.
+  tabby: { command: 'echo tabby-ok' },
 };
 
 // Shells living inside a distribution. They are keyed by the derived surface id,
@@ -149,6 +153,7 @@ const EXPECT = {
   wt: { re: /wt-ok/, why: 'the shim carried a command into a Windows Terminal tab' },
   mintty: { re: /mintty-ok/, why: 'the shim carried a command into a mintty window' },
   wezterm: { re: /wezterm-ok/, why: 'a wezterm pane answered and was read back' },
+  tabby: { re: /tabby-ok/, why: 'the dss profile ran the agent and the job file came back' },
   pty: { re: /door opened|door stayed shut/, why: 'the console answered its prompt' },
 };
 

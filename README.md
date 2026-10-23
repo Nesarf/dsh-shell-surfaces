@@ -35,13 +35,20 @@ shell_surfaces(action="run", surface="pty",  command="powershell -File install.p
 
 "Fall back to pwsh" used to mean "leave this tool and use the other one". The
 `pwsh` surface closes that gap: a PowerShell command is an ordinary call here,
-the same shape as every other surface, so a session that hits an awkward
-surface does not have to change its tool to get a PowerShell job done.
+the same shape as every other surface, so a session that hits an awkward surface
+does not have to change its tool to get a PowerShell job done. Background jobs,
+timeout promotion, escalation approval and persistent sessions work on it as
+well -- they are surface features here, not privileges of one tool.
 
-What this surface deliberately does **not** carry, and the built-in `pwsh` tool
-does, is approval and sandbox escalation, and a persistent session. Those are
-reasons to use that tool and not this surface -- but "the command is PowerShell"
-is not one of them.
+Both PowerShells are addressable, and that took two entries rather than one. `pwsh`
+is PowerShell 7 and is the better default; `powershell` is the 5.1 that ships
+with Windows. Keeping them behind a single `DSH_PWSH` variable meant a machine
+holding both could reach only one of them, while "does this script still work on
+5.1" is a question two surfaces answer and one variable cannot.
+
+The one shape this tool does not carry is a terminal session that keeps a drawn
+prompt or a cursor. That is where the built-in `pwsh` tool still earns its place;
+"the command is PowerShell" is not a reason to go there.
 
 A surface-level failure is also not a reason to change tools. When a surface is
 absent, cannot spawn, or times out, the tool says so and names the next call
@@ -110,6 +117,32 @@ What the scan adds to the table:
 | a terminal program (`wt`, `mintty`, `wezterm`, ...) | reported in `action="surfaces"` under `discovered`, not a surface: a terminal draws text, it does not interpret commands |
 | a terminal installed inside a distribution (`kitty`, `tmux`, `screen`) | reported with `wsl:<distro>` as its source; the Windows PATH cannot see it |
 | `tcsh` or BusyBox in the MSYS2 userland | surfaces of their own: `tcsh` (`-c`) and `busybox` (`sh -c`) |
+| `dash` in the MSYS2 userland | a `dash` surface: the strict POSIX sh, where a bash-ism fails instead of being forgiven |
+| a shell installed inside a distribution (`elvish`, `ksh`, `xonsh`, `mksh`, `tcsh`, BusyBox) | its own `wsl-<shell>` surface, which runs *that* shell rather than bash |
+
+A shell that lives inside a distribution used to be reachable only by writing
+`bash -lc 'elvish -c ...'` by hand -- a wrapper the caller had to quote correctly
+every time, for a shell the scan had already found. `wsl-elvish` (and its
+siblings) run the shell itself: the command is written to the distribution's
+stdin as `exec elvish -c '<command>'`, so the outer bash gets one word it passes
+through untouched. `wsl-bash` does not exist on purpose -- `wsl` already is bash.
+
+### The command travels on stdin, not as an argument
+
+`wsl.exe` recomposes the words it was handed into one command line and hands that
+line to the distribution, where it is parsed once more. A `$VAR` in an argument
+was therefore expanded by a shell that had never run the loop defining it.
+Measured 2026-10-20, through this surface:
+
+```
+for n in alpha beta; do echo "n=[$n]"; done   ->  n=[] and n=[]   (wanted alpha, beta)
+echo 'single=[$HOME]'                         ->  single=[/home/...]  (single quotes lost too)
+```
+
+while the same commands on the `msys` surface answered correctly. Base64 behind
+`eval` did not help -- that wrapper was re-parsed the same way. The one channel
+`wsl.exe` does not rewrite is stdin, so the command now goes there and bash reads
+it with `-l -s`. Scripts are unaffected: a file path was always safe.
 
 The distribution probe is bounded: a cold instance that outlasts the budget
 reports nothing for that distribution instead of blocking the scan.

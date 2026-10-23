@@ -92,9 +92,15 @@ equal('wsl path: forward slashes', toWslPath('D:/msys64/usr/bin/bash.exe'), '/mn
 equal('wsl path: posix path is left alone', toWslPath('/usr/bin/env'), '/usr/bin/env');
 
 const wslInline = buildArgv('wsl', specs.wsl, { command: 'uname -sr', script: '', cwd: '', send: [] });
-check('wsl command is one argv element after --', wslInline.argv.includes('--') && wslInline.argv.at(-1) === 'uname -sr');
-check('wsl asks bash to take a command line', wslInline.argv.at(-2) === '-lc');
-check('wsl command is not pre-quoted', !wslInline.argv.some((a) => /["']/.test(a)));
+// Measured 2026-10-20: wsl.exe recomposes its arguments into one command line
+// and that line is parsed again inside the distribution, so a `$VAR` in an
+// argument was expanded by a shell that had never run the loop defining it
+// (`for n in alpha beta; do echo "n=[$n]"; done` printed n=[] twice, and even a
+// single-quoted literal lost its value). stdin is the one channel it does not
+// rewrite, so the command is not an argument at all any more.
+check('wsl command travels on stdin, not as an argument', wslInline.stdin === 'uname -sr\n' && !wslInline.argv.includes('uname -sr'));
+check('wsl asks bash to read its script from stdin', wslInline.argv.at(-2) === '-l' && wslInline.argv.at(-1) === '-s');
+check('wsl argv carries no quoting and no dollar sign at all', !wslInline.argv.some((a) => /["'$]/.test(a)));
 
 const wslScript = buildArgv('wsl', specs.wsl, {
   command: '',
@@ -106,6 +112,43 @@ equal('wsl script becomes a file path', wslScript.argv.at(-1), '/mnt/e/DaShaoHuo
 
 const wslCwd = buildArgv('wsl', specs.wsl, { command: 'pwd', script: '', cwd: 'E:\\DaShaoHuo', send: [] });
 check('wsl cwd stays a Windows path for wsl.exe to translate', wslCwd.argv.includes('E:\\DaShaoHuo'));
+
+// A shell that lives inside a distribution gets its own face, and its command is
+// handed to that shell rather than to bash: `exec <program> -c '<command>'` is
+// written to the same stdin script, single-quoted so the outer bash passes it
+// through untouched.
+const elvishSpec = specs['wsl-elvish'];
+if (elvishSpec !== void 0) {
+  const built = buildArgv('wsl-elvish', elvishSpec, { command: 'echo hi', script: '', cwd: '', send: [] });
+  check('a distribution shell is exec-ed with -c', built.stdin.startsWith('exec elvish -c '));
+  check('its command is quoted so the outer bash leaves it alone', built.stdin.includes("'echo hi'"));
+  check('and it keeps the same stdin hand-off as wsl', built.argv.at(-1) === '-s');
+}
+const busyboxWsl = specs['wsl-busybox'];
+if (busyboxWsl !== void 0) {
+  const built = buildArgv('wsl-busybox', busyboxWsl, { command: 'echo ok', script: '', cwd: '', send: [] });
+  check('busybox inside a distribution is asked for its sh', built.stdin.startsWith('exec busybox sh -c '));
+}
+check('a distribution shell never duplicates the bash that wsl already is', specs['wsl-bash'] === void 0);
+
+// --- dash and the two PowerShells -----------------------------------------------
+
+const dashArgv = buildArgv('dash', specs.dash, { command: 'echo ok', script: '', cwd: '', send: [] });
+check('dash gets a plain -c', dashArgv.argv.includes('-c'));
+check('dash gets the MSYS PATH prefix so its coreutils resolve', dashArgv.env.PATH_PREFIX !== void 0);
+
+const ps51 = buildArgv('powershell', specs.powershell, { command: 'echo hi', script: '', cwd: '', send: [] });
+equal(
+  'PowerShell 5.1 gets the same -Command shape as pwsh',
+  ps51.argv.slice(1).join(' '),
+  '-NoProfile -NonInteractive -Command echo hi',
+);
+const ps51File = buildArgv('powershell', specs.powershell, { command: '', script: 'C:\\x.ps1', cwd: '', send: [] });
+check('PowerShell 5.1 wants -File for a script', ps51File.argv.includes('-File') && !ps51File.argv.includes('-Command'));
+check(
+  'PowerShell 5.1 and 7 are two surfaces, not one variable',
+  specs.powershell !== void 0 && specs.pwsh !== void 0 && specs.powershell.exe !== specs.pwsh.exe,
+);
 
 // --- the MSYS family ------------------------------------------------------------
 

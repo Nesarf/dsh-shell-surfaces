@@ -301,17 +301,18 @@ two-line change.
 
 ## A container is a face too
 
-podman inside the distribution (rootless) is one more place a command can run:
-`podman run --rm <image> sh -c '<command>'`, handed over on stdin the same way a
+Every container runtime the scan finds inside a distribution gets one:
+`<runtime> run --rm <image> sh -c '<command>'`, handed over on stdin the same way a
 derived shell's command is. It is deliberately throwaway -- a face is one command,
 not a session -- so nothing persists between calls; when state matters, `wsl` is
-the surface to use. The face appears only when the scan finds podman inside a
-distribution, so a machine without one reports nothing rather than a face that
-fails on every call. `DSH_PODMAN_IMAGE` picks the image (default
-`docker.io/library/alpine:latest`) and the first call pulls it.
+the surface to use. A machine with neither runtime reports neither face.
 
-Two unrelated things had to be fixed before it would run on this image
-(2026-10-24), and neither was podman's fault:
+Both runtimes are present on this machine (2026-10-24) and they are not
+interchangeable: `podman` is rootless, `docker` is not. `DSH_PODMAN_IMAGE` and
+`DSH_DOCKER_IMAGE` (or one `DSH_CONTAINER_IMAGE`) pick the image, default
+`docker.io/library/alpine:latest`, pulled on the first call.
+
+Getting them to run took four unrelated fixes, none of them the runtimes' fault:
 
 * `libphonenumber` pinned an older protobuf than podman wanted. Upgrading the two
   together resolved it -- the repository's current `libphonenumber` already
@@ -320,11 +321,17 @@ Two unrelated things had to be fixed before it would run on this image
   with `keyring is not writable`. `pacman-key --init` plus `--populate archlinux`
   rebuilt it with 180 keys. Note that `pkill -f gpg-agent` is the wrong way to
   quiet the agent: the pattern matches the shell running it, which kills the
-  command itself.
+  command itself. The keyring went bad **again** after `wsl --shutdown`, so the
+  rebuild is a thing to expect rather than a one-off.
 * rootless podman needs `libsubid.so.6`, which the installed `shadow` (4.18.0) did
   not provide; that package was upgraded for it. With subuid/subgid already in
-  place, the container then ran on the first try: `container-face-ok` and
-  `ID=alpine` in 2.6 s.
+  place the container ran first try: `container-face-ok` and `ID=alpine` in 2.6 s.
+* docker could not pull: `dockerd` uses the distribution's own network stack and
+  the registry resolved to an IPv6 address that does not answer here
+  (`dial tcp [2a03:2880:...]:443: i/o timeout`). The image came over from podman
+  instead -- `podman save docker.io/library/alpine:latest | docker load` -- and
+  `docker run --rm alpine:latest` then answered `docker-ok`. Adding the daemon to
+  the `docker` group is what lets the surface reach the socket at all.
 
 ## The list is a tree
 

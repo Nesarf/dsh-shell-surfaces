@@ -151,14 +151,18 @@ if (specs['wsl-elvish'] !== void 0) {
     'a session there would quietly run bash while the row claims elvish',
   );
 }
-if (specs.podman !== void 0) {
-  // A container runtime is a place to run a command, so it is a face -- throwaway
-  // by design, because a face is one command rather than a session.
-  equal('podman is a container surface', specs.podman.kind, 'container');
-  check('and it runs a throwaway container', (specs.podman.wslExec?.argv ?? []).includes('--rm'));
+// A container runtime is a place to run a command, so it is a face -- throwaway by
+// design, because a face is one command rather than a session. Both runtimes get
+// the same treatment: a machine can have podman (rootless here) and docker (not)
+// and they are not interchangeable.
+for (const id of ['podman', 'docker']) {
+  const spec = specs[id];
+  if (spec === void 0) continue;
+  equal(`${id} is a container surface`, spec.kind, 'container');
+  check(`${id} runs a throwaway container`, (spec.wslExec?.argv ?? []).includes('--rm'));
   check(
-    'with sh -c carrying the command, handed over the same way a derived shell is',
-    (specs.podman.wslExec?.argv ?? []).slice(-2).join(' ') === 'sh -c',
+    `${id} carries the command through sh -c, the same way a derived shell does`,
+    (spec.wslExec?.argv ?? []).slice(-2).join(' ') === 'sh -c',
   );
 }
 

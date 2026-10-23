@@ -103,6 +103,7 @@ const WINDOWS_CASES = {
   // A container is a place to run a command, so it is asked the same question the
   // other faces are. Absent on a machine without podman, where this case skips.
   podman: { command: 'echo podman-ok; head -1 /etc/os-release' },
+  docker: { command: 'echo docker-ok; head -1 /etc/os-release' },
   pty: { command: `powershell -NoProfile -ExecutionPolicy Bypass -File ${ptyGate}`, send: ['y\n'] },
 };
 
@@ -153,6 +154,8 @@ const EXPECT = {
   node: { re: /^\s*42\s*$/m, why: 'Node answered' },
   perl: { re: /^\s*42\s*$/m, why: 'Perl answered' },
   cscript: { re: /^\s*42\s*$/m, why: 'Windows Script Host answered from a temporary .vbs' },
+  podman: { re: /podman-ok/, why: 'a throwaway container answered from the image' },
+  docker: { re: /docker-ok/, why: 'a throwaway container answered through docker' },
   wt: { re: /wt-ok/, why: 'the shim carried a command into a Windows Terminal tab' },
   mintty: { re: /mintty-ok/, why: 'the shim carried a command into a mintty window' },
   wezterm: { re: /wezterm-ok/, why: 'a wezterm pane answered and was read back' },

@@ -245,6 +245,19 @@ equal(
 );
 equal('an empty config yields no destinations', scanSshHosts('').join(','), '');
 
+// `accept-new` is the behaviour that fits both ends: a host seen for the first
+// time is recorded, while a host whose key CHANGED is still refused. Measured
+// 2026-10-24: without it the first call to any new host died with "Host key
+// verification failed", which reads as a broken destination rather than an
+// unrecorded one.
+const sshDestination = Object.entries(resolveSurfaces()).find(([id, spec]) => id.startsWith('ssh-') && Array.isArray(spec.argv));
+if (sshDestination !== void 0) {
+  check(
+    'an ssh destination records a new host key and still refuses a changed one',
+    sshDestination[1].argv.includes('StrictHostKeyChecking=accept-new'),
+  );
+}
+
 // --- the terminal program -------------------------------------------------------
 
 // WezTerm is the one terminal program with a face, and it is not a shell: it is

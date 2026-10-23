@@ -235,6 +235,12 @@ call is worse than no face:
 at a prompt nobody can type into, and the call reads as hung; with it, that host
 fails at once and says so.
 
+`StrictHostKeyChecking=accept-new` is the other half of that argument. A host seen
+for the first time is recorded; a host whose key has **changed** is still refused.
+Without it the first call to any new destination dies with "Host key verification
+failed", which reads as a broken face rather than as an unrecorded host -- measured
+2026-10-24 by clearing the entry from `known_hosts` and calling the surface.
+
 When ssh cannot get as far as the command it answers 255, and the result carries a
 note saying so: an unreachable host, a refused key or a changed host key is a
 surface-level problem, not a failed command. Measured 2026-10-24 by stopping the

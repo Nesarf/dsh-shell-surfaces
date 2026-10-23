@@ -172,11 +172,16 @@ for (const [id, why] of [
   EXPECT[id] = { re: /-ok|-42|^\s*42\s*$/m, why };
 }
 
-const windowCases = process.env.DSH_LIVE_TERMINALS === '1' ? WINDOW_CASES : {};
+// Naming a window face on the command line is also opting in. README promises
+// it, and a run that names `wt` and then silently skips it is the kind of small
+// lie that makes a check untrustworthy.
+const named = process.argv.slice(2);
+const wantsWindows = process.env.DSH_LIVE_TERMINALS === '1' || named.some((id) => id in WINDOW_CASES);
+const windowCases = wantsWindows ? WINDOW_CASES : {};
 const cases = isWindows
   ? { ...COMMON_CASES, ...WINDOWS_CASES, ...windowCases, ...DISTRO_SHELL_CASES }
   : { ...COMMON_CASES };
-const wanted = process.argv.slice(2).length > 0 ? process.argv.slice(2) : Object.keys(cases);
+const wanted = named.length > 0 ? named : Object.keys(cases);
 const surfaces = resolveSurfaces();
 
 if (wanted.length === 0) {

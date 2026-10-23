@@ -166,6 +166,17 @@ for (const id of ['podman', 'docker']) {
   );
 }
 
+// A container that is already running gets a face of its own, and the throwaway
+// faces stay throwaway. Measured 2026-10-24 by writing a file through both: the
+// running container kept it across calls, the one-shot face answered
+// "No such file or directory" on the next call -- which is the whole difference
+// between `exec` and `run --rm`.
+for (const [id, spec] of Object.entries(specs)) {
+  if (spec.kind !== 'container' || !(spec.wslExec?.argv ?? []).includes('exec')) continue;
+  check(`${id} execs into a container that is already running`, spec.wslExec.argv.includes('exec'));
+  check(`${id} still carries the command through sh -c`, spec.wslExec.argv.slice(-2).join(' ') === 'sh -c');
+}
+
 // A shell that lives inside a distribution gets its own face, and its command is
 // handed to that shell rather than to bash: `exec <program> -c '<command>'` is
 // written to the same stdin script, single-quoted so the outer bash passes it

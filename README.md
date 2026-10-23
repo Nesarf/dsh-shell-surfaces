@@ -333,6 +333,26 @@ Getting them to run took four unrelated fixes, none of them the runtimes' fault:
   `docker run --rm alpine:latest` then answered `docker-ok`. Adding the daemon to
   the `docker` group is what lets the surface reach the socket at all.
 
+### A container that is already running is a face of its own
+
+`<runtime> exec <name> sh -c '<command>'`, derived from `docker ps` / `podman ps` in
+the same scan, so the face exists exactly while its container does. It needs a shell
+inside the image -- a scratch image has none, and the call says so rather than
+pretending.
+
+The difference is measured, not asserted (2026-10-24, writing a file through both
+doors and reading it on the next call):
+
+| face | write | read on the next call |
+| --- | --- | --- |
+| `docker-dss-docker` -- `exec` into a running container | `kept` | `kept` |
+| `docker` -- one-shot `run --rm` | `kept` | `marker-gone` |
+
+Getting the container list cost one lesson: the scan script goes on **stdin**, not
+as an argument. With it as an argument the list came back empty while `docker ps`
+answered fine by hand -- `wsl.exe` recomposes what it is handed and parses it again
+inside the distribution, which is the same trap the `wsl` surface's own commands hit.
+
 ## The list is a tree
 
 `action="surfaces"` draws the table as a tree, because a userland that hosts

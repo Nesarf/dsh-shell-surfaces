@@ -8,14 +8,16 @@
 `https://github.com/Nesarf/dsh-shell-surfaces` -- a DSH plugin, installed with
 `dsh plugin --profile <profile> add github:Nesarf/dsh-shell-surfaces`.
 
-The badge is the whole test workflow: the pure self-test, and the two-runner
-probe that asks every shell on Windows and on Linux what it is. A green badge
-therefore means "the table and the argv shape still hold, and both platforms
-still answered", not just "the linter passed".
+The badge is the whole test workflow: the pure self-test, and a live check that
+runs one real command on every surface the runner has -- on Windows and on Linux --
+then feeds those answers into the same table a person reads. A green badge means
+"the table and the argv shape still hold, and both platforms still answered", not
+just "the linter passed".
 
-One DSH tool for the execution surfaces this machine has: a WSL Linux userland,
-nushell's structured pipelines, the MSYS2 userland (bash / zsh / fish / brush),
-PowerShell itself, and a real console for interactive programs.
+One DSH tool for the execution surfaces this machine has -- thirty-two faces at
+the last measurement: a WSL Linux userland and the ten shells inside it, the MSYS2
+userland's six, four interpreters, both PowerShells, four window hosts, a real
+console, and nushell.
 
 It exists because a rule that is only written down is not a capability. The
 selection rules for these surfaces have been recorded for a while, but a session
@@ -115,18 +117,14 @@ session argv runs fish's own line reader, `while read -l dss_line; eval
 $dss_line; end`, so each line is evaluated on its own. Measured: `cd /tmp` and
 `set -x DSS_X 41` survived into the next call as `X=41;P=/tmp`.
 
-A session is a real process, and nothing closes one but plugin unload -- so the
-pool sweeps idle sessions before each session call (`reapIdleSessions`, thirty
-minutes by default, `DSH_SESSION_IDLE_MS` to change it) and can drop one owner's
-sessions without touching anyone else's. A call that closed something says so in
-its message, because the next call to that shell starting fresh is otherwise a
-surprise.
-
-A derived `wsl-<shell>` face deliberately has **no** session: the session's argv
-is `bash -l -s`, so a session there would quietly run bash while the row claims
-elvish or ysh. A session runs one command at a time, so the job flags are refused
-with it, and `pty` has no session at all: a console transcript is read while the
-program is alive.
+A session is a real process, and three things close one: the sweep before each
+session call (`reapIdleSessions`, thirty minutes of idle by default,
+`DSH_SESSION_IDLE_MS` to change it), a timer that sweeps the same budget on its
+own clock so a shell nobody returns to is still noticed, and the disposal of the
+conversation that owned it -- `session/disposed` closes the shells of every agent
+that named that session. Plugin unload closes whatever is left. A call that closed
+something says so in its message, because the next call to that shell starting
+fresh is otherwise a surprise.
 
 A derived `wsl-<shell>` face deliberately has **no** session: the session's argv
 is `bash -l -s`, so a session there would quietly run bash while the row claims
@@ -151,7 +149,8 @@ What the scan adds to the table:
 | a WSL distribution other than the default | its own `wsl-<distro>` surface |
 | a Git-for-Windows or Cygwin bash | a `git-bash` surface (the MSYS2 one keeps `msys`) |
 | `cmd.exe` | a `cmd` surface (`cmd /c`) |
-| a terminal program (`wt`, `mintty`, `wezterm`, ...) | reported in `action="surfaces"` under `discovered`, not a surface: a terminal draws text, it does not interpret commands |
+| a terminal program that can be driven (`wt`, `mintty`, `wezterm`, `tabby`) | a face of its own -- through the `dss-exec` shim for the first two, its own pane API for WezTerm, a private profile for Tabby (see "Opening a path instead of refusing it") |
+| a terminal program with no such entry (`alacritty`, `conhost`, kitty without a GUI session) | reported in `discovered` with an `openWith` line saying how it could be reached, if at all |
 | a terminal installed inside a distribution (`kitty`, `tmux`, `screen`) | reported with `wsl:<distro>` as its source; the Windows PATH cannot see it |
 | `tcsh` or BusyBox in the MSYS2 userland | surfaces of their own: `tcsh` (`-c`) and `busybox` (`sh -c`) |
 | `dash` in the MSYS2 userland | a `dash` surface: the strict POSIX sh, where a bash-ism fails instead of being forgiven |
@@ -273,8 +272,8 @@ opens as captured output -- a hierarchy and a log want different shapes.
 
 ## Why one tool and not seven
 
-Every registered tool spends part of the context on its description. Seven tools
-would say the same thing seven times. The selection rules -- which surface for a
+Every registered tool spends part of the context on its description. Thirty-two
+tools would say the same thing thirty-two times. The selection rules -- which surface for a
 structured pipe, which for a Linux-only tool, which for a program that waits for
 input -- live in this one description, and a session reads them exactly when it
 is choosing.
@@ -299,7 +298,7 @@ call reads as the sentence it is:
 WSL · grep -P '(?<=Linux )[0-9.]+' /proc/version      完成 · 120ms
 zsh · ls                                            1 · 12ms
 conPTY · cmd /c ver                                  运行中
-shells · 列出可用 surface                             完成
+shells · 32 of 32 surfaces are on this machine       完成
 ```
 
 The surface name is at the head, the activity beside it, the exit status at the
@@ -363,14 +362,15 @@ than a shrug.
 * **No terminal emulator.** A terminal emulator draws text for a person and adds
   nothing a subprocess can use. The one surface that needs a console talks to
   ConPTY directly.
-* **No window launcher.** Windows Terminal, Tabby, mintty, kitty, WezTerm and
-  gnome-terminal stay in the scan report and were deliberately given no face.
-  Measured 2026-10-24: `wt --help` opens a window and never exits, so the call sat
-  here until its 120 s budget expired, and a command launched inside a window
-  writes into that window instead of back to the caller. `git-shell` was refused
-  for its own reason: it rejects every command that is not a git
-  upload/download (`fatal: unrecognized command`). A face that cannot answer is
-  worse than a report that says it is not one.
+* **No window launcher that cannot answer.** Windows Terminal and mintty are
+  driven through the `dss-exec` shim, WezTerm through its own pane API, and Tabby
+  through a private profile; each returns a structured result rather than a
+  window's contents. A terminal program with no such entry stays a scan report,
+  and the report says which entry it would need: `wt --help` measured as a window
+  that never exits, and kitty needs a GUI session this machine cannot give it.
+  `git-shell` was refused for its own reason: it rejects every command that is not
+  a git upload/download (`fatal: unrecognized command`). A face that cannot answer
+  is worse than a report that says so.
 
 ## The facts behind the argument lists
 
@@ -425,24 +425,28 @@ node scripts/probe-faces.mjs | node scripts/probe-table.mjs   # every surface in
 pwsh -File scripts/probe-all-shells.ps1 | node scripts/probe-table.mjs   # terminals + the long-standing shells
 ```
 
-Two probes, because they answer different questions. **`probe-faces.mjs` reads
-the table**, so it covers every face that exists here -- interpreters, the shells
-inside a distribution, the window hosts (skipped unless `PROBE_TERMINALS=1`, since
-they open real windows). Measured 2026-10-24: 28 faces answered, against 12 for
-the hand-written list, and that gap is why this script exists -- a face added to
-the table used to be visible to `action="surfaces"` and invisible to the probe.
+**`live-check.mjs` is the probe now.** With `LIVE_CHECK_JSON=1` it writes the JSON
+`probe-table.mjs` eats to stdout and its human-readable lines to stderr, so one run
+answers both "is this surface alive" and "what version is it". CI uses that form;
+the plain form is what a person runs.
+
+`probe-faces.mjs` came first and does the census without asserting anything: it
+reads the table and asks every present face what it is. It stays for a quick "what
+is on this machine right now" that cannot fail a build.
 
 `probe-all-shells.ps1` stays for what the table cannot answer: the **terminal
-programs** (wt, WezTerm, Tabby, mintty, conhost) have no face, and a version
-census is the one place their presence is recorded.
+programs without a face** (alacritty, conhost, kitty here) still have no entry, and
+a version census is where their presence is recorded.
 
 The live check covers the interpreters and the shells inside a distribution as
 well, and it opts **out** of the window faces by default: a routine run should
 not put four windows on someone's screen, so `wt`, `mintty`, `wezterm` and `tabby`
 are exercised only when `DSH_LIVE_TERMINALS=1` or when named on the command line.
-Measured on this machine: the default set is 25 surfaces, and the four window
-faces answer `wt-ok` / `mintty-ok` / `wezterm-ok` / `tabby-ok` in 0.34 to 1.05 s
-once their instance is warm (tabby's first call pays for a cold start).
+Measured on this machine: the default set is twenty-six surfaces (twenty-five
+answering, one skipped because its nushell cannot run on that distribution's
+glibc), and the four window faces answer `wt-ok` / `mintty-ok` / `wezterm-ok` /
+`tabby-ok` in 0.34 to 1.05 s once their instance is warm (tabby's first call pays
+for a cold start).
 
 CI runs the self-test, and runs the probe on both a Windows and a Linux runner
 (the tables land in the run summary, so "which surfaces exist" is a record with
@@ -465,11 +469,13 @@ Its table goes into the run summary beside the probe's, so "this runner is missi
 half the surfaces, and here is why" is answerable without opening the log.
 
 
-Every surface was also run for real (2026-10-15): wsl returned the kernel and a
-`/proc` count, nu returned a number through a structured pipeline, msys returned
-its bash version and a package count, zsh its parameter-expansion result, fish
-its arithmetic result, brush an uppercased string, and pty answered a
-`Read-Host` prompt with `y` and printed the branch it took.
+The first full pass (2026-10-15) ran every surface the table had then: wsl returned
+the kernel and a `/proc` count, nu returned a number through a structured pipeline,
+msys returned its bash version and a package count, zsh its parameter-expansion
+result, fish its arithmetic result, brush an uppercased string, and pty answered a
+`Read-Host` prompt with `y` and printed the branch it took. That list has since
+grown to thirty-two faces -- which is exactly why the live check reads the table
+instead of keeping a list of its own.
 
 ## Honest boundaries
 
@@ -485,10 +491,11 @@ its arithmetic result, brush an uppercased string, and pty answered a
   the pty surface needs `python` on PATH with `pywinpty` installed.
 * The `pwsh` surface is PowerShell 7 (`pwsh.exe`) by default; a machine with
   only Windows PowerShell sets `DSH_PWSH=powershell.exe`.
-* The `pwsh` surface can run in the foreground or as a background job
-  (`run_in_background`), and can keep a timeout alive (`promote_on_timeout`).
-  Approval/sandbox escalation and the persistent session stay with the built-in
-  `pwsh` tool -- that tool is the right one when the machinery is the task.
+* The `pwsh` surface can run in the foreground, as a background job
+  (`run_in_background`), or promoted past its timeout (`promote_on_timeout`), and
+  it carries escalation approval and a persistent session as well. The built-in
+  `pwsh` tool keeps exactly one shape this one does not: a terminal session that
+  keeps a drawn prompt or a cursor.
 * Background work and promotion need the `jobs` service. A composition without
   it gets a refusal sentence instead of a job nobody can read, and the `pty`
   surface has no background mode at all: a console transcript has to be read
@@ -497,11 +504,13 @@ its arithmetic result, brush an uppercased string, and pty answered a
   nothing is confined, exactly as before. When it is mounted, confinement covers
   every surface, including `wsl` and `msys`; a surface the runner cannot launch
   under confinement reports the sandbox problem rather than running unconfined.
-* Sessions exist for the surfaces that can read commands from stdin (`pwsh`,
-  `msys`). A surface without one says so and names the surfaces that have it.
-  A session is process-local: it does not survive a harness restart, and plugin
-  disposal ends every one of them.
+* Sessions exist for ten surfaces -- the shells that can read commands from stdin,
+  which is every shell here except `pty` and the four window hosts. A derived
+  `wsl-<shell>` face has none on purpose (a session there would run bash while the
+  row claims elvish), and a surface without one says so and names the ones that
+  have it. A session is process-local: it does not survive a harness restart.
 * The scan runs once per process; `refresh: true` on a surfaces query re-runs it,
   so a shell installed later appears without a restart.
-* Terminal programs are reported, never run: `pty` is the one console this tool
-  drives, and `discovered` only says the others exist.
+* Of the terminal programs this machine has, four are faces (`wt`, `mintty`,
+  `wezterm`, `tabby`) and the rest stay reports. `pty` remains the one real
+  console, and the one shape no window face carries.

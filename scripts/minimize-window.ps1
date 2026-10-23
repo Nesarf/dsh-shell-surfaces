@@ -41,7 +41,11 @@ while ((Get-Date) -lt $deadline) {
     if (Try-Minimise $direct) { return }
   }
   if (-not [string]::IsNullOrWhiteSpace($Match)) {
-    $candidates = Get-CimInstance Win32_Process -Filter "Name = 'Tabby.exe'" -ErrorAction SilentlyContinue |
+    // Deliberately not filtered by image name: the window can belong to
+    // WindowsTerminal.exe, mintty.exe or Tabby.exe depending on the surface, and
+    // the per-call marker in its command line is what identifies it. Filtering by
+    // name would either miss the window or, worse, match the user's own.
+    $candidates = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
       Where-Object { $null -ne $_.CommandLine -and $_.CommandLine.Contains($Match) }
     foreach ($candidate in $candidates) {
       $process = Get-Process -Id $candidate.ProcessId -ErrorAction SilentlyContinue

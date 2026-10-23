@@ -194,7 +194,16 @@ if (wanted.length === 0) {
   // Reached on a platform this plugin's table has no surface for (a Linux runner:
   // every entry in the table is a Windows-side surface). Printed as its own
   // sentence, because "0 passed, 0 failed, 0 skipped" is technically true and
-  // tells the reader nothing about why nothing ran.
+  // tells the reader nothing about why nothing ran. In JSON mode the sentence
+  // still gets said -- on stderr, so stdout stays one parseable document and an
+  // empty census is the honest answer there (CI caught this: the sentence itself
+  // was being fed to probe-table.mjs as JSON).
+  if (jsonMode) {
+    console.error('-- nothing to run here: this table has no surface for this platform');
+    console.error(`   the table: ${Object.keys(surfaces).join(', ')}`);
+    process.stdout.write(JSON.stringify({ shells: [] }));
+    process.exit(0);
+  }
   console.log('-- nothing to run here: this table has no surface for this platform');
   console.log(`   the table: ${Object.keys(surfaces).join(', ')}`);
   console.log('   (the POSIX shell on this machine is DSH\'s own tool, not this plugin)');

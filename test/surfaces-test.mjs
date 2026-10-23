@@ -178,7 +178,13 @@ if (busyboxWsl !== void 0) {
   const built = buildArgv('wsl-busybox', busyboxWsl, { command: 'echo ok', script: '', cwd: '', send: [] });
   check('busybox inside a distribution is asked for its sh', built.stdin.startsWith('exec busybox sh -c '));
 }
-check('a distribution shell never duplicates the bash that wsl already is', specs['wsl-bash'] === void 0);
+// `sh` is bash's alias on this distribution, so it is the same duplicate as
+// `bash` -- two names for the face that already exists. Measured 2026-10-24, when
+// merging the scans briefly produced `wsl-sh`.
+check(
+  'a distribution shell never duplicates the bash that wsl already is',
+  specs['wsl-bash'] === void 0 && specs['wsl-sh'] === void 0,
+);
 
 // --- dash and the two PowerShells -----------------------------------------------
 

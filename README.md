@@ -361,7 +361,8 @@ Each of these was measured on this machine, and each shapes the argv:
 | `lib/runner.js` | argv construction, bounded output with spill, timeout classification |
 | `scripts/pty_runner.py` | the console: pywinpty, a reader thread, ANSI stripping, one JSON report |
 | `scripts/live-check.mjs` | runs one real command per surface through the plugin's own code path |
-| `scripts/probe-all-shells.ps1` | a version census: asks the long-standing shells **and** terminals what version they are; platform-shaped, one JSON object out |
+| `scripts/probe-faces.mjs` | reads the surface TABLE and asks every present face what it is; a face added to the table is covered without being added here too |
+| `scripts/probe-all-shells.ps1` | a version census for the terminals and the long-standing shells, from a hand-written list; platform-shaped, one JSON object out |
 | `scripts/probe-posix.sh`, `scripts/probe-wsl.sh` | the POSIX and WSL probes, as files, because an inline command crosses quoting layers and a `$()` gets expanded by the wrong one |
 | `scripts/probe-table.mjs` | the probe's JSON as a markdown table, also written to `$GITHUB_STEP_SUMMARY` |
 | `scripts/pty-gate.ps1` | the interactive fixture: a `Read-Host` prompt for the pty case |
@@ -376,17 +377,20 @@ node test/client-bundle-test.mjs     # the real client bundle behind a fake modu
 node scripts/live-check.mjs          # one real command per surface on this machine
 node scripts/live-check.mjs wsl nu   # or only some of them
 DSH_LIVE_TERMINALS=1 node scripts/live-check.mjs wt mintty wezterm tabby   # the window faces, which open windows
-pwsh -File scripts/probe-all-shells.ps1 | node scripts/probe-table.mjs   # version census for the long-standing shells
+node scripts/probe-faces.mjs | node scripts/probe-table.mjs   # every surface in the table
+pwsh -File scripts/probe-all-shells.ps1 | node scripts/probe-table.mjs   # terminals + the long-standing shells
 ```
 
-The probe is a **version census**, not the inventory: it answers "what version is
-this" for the shells that were here from the start -- measured 2026-10-24 it
-reports 12 shells while the table holds 32 faces. The interpreters
-(`python`/`node`/`perl`/`cscript`), the shells living inside a distribution
-(`wsl-osh`, `wsl-ysh`, `wsl-elvish` and the rest) and the window hosts are covered
-by `action="surfaces"` and by the live check, which reads the table rather than a
-list of its own. Keeping the probe's list short is deliberate: it measures
-versions, and a version only needs asking once.
+Two probes, because they answer different questions. **`probe-faces.mjs` reads
+the table**, so it covers every face that exists here -- interpreters, the shells
+inside a distribution, the window hosts (skipped unless `PROBE_TERMINALS=1`, since
+they open real windows). Measured 2026-10-24: 28 faces answered, against 12 for
+the hand-written list, and that gap is why this script exists -- a face added to
+the table used to be visible to `action="surfaces"` and invisible to the probe.
+
+`probe-all-shells.ps1` stays for what the table cannot answer: the **terminal
+programs** (wt, WezTerm, Tabby, mintty, conhost) have no face, and a version
+census is the one place their presence is recorded.
 
 The live check covers the interpreters and the shells inside a distribution as
 well, and it opts **out** of the window faces by default: a routine run should

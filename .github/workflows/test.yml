@@ -7,13 +7,20 @@ name: test
 # on Linux on purpose -- the surfaces it drives are Windows-only, so a Linux
 # runner is where "the checks are portable" stops being a claim.
 #
-# `surfaces` runs the real probe on both platforms and asks every shell it can
-# find what version it is. On Windows that is twelve surfaces and six terminals;
-# on Linux it is the POSIX ones, because the script is platform-shaped, and a
-# Windows-only list would answer a Linux runner with twelve "not found" lines --
-# which reads as a broken script instead of an honest report. The tables land in
-# the run summary, so "which surfaces exist" becomes a record with history rather
-# than something a person measured once.
+# `surfaces` runs two probes on both platforms, because they answer different
+# questions and neither covers the other.
+#
+#   probe-faces.mjs       reads the surface TABLE, so it covers every face the
+#                         plugin can run here -- interpreters, the shells inside a
+#                         distribution, the window hosts -- and a face added to the
+#                         table shows up without being added here too.
+#   probe-all-shells.ps1  reads versions of the terminals and the long-standing
+#                         shells from a hand-written list; it is platform-shaped,
+#                         so a Linux runner gets the POSIX ones rather than twelve
+#                         "not found" lines.
+#
+# The tables land in the run summary, so "which surfaces exist" becomes a record
+# with history rather than something a person measured once.
 
 on:
   push:
@@ -52,7 +59,12 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '24'
-      - name: ask every shell on this runner what it is
+      - name: ask every surface in the table what it is
+        shell: pwsh
+        run: |
+          node scripts/probe-faces.mjs | Out-File -Encoding utf8 faces.json
+          node scripts/probe-table.mjs faces.json
+      - name: ask the terminals and the long-standing shells what they are
         shell: pwsh
         run: |
           ./scripts/probe-all-shells.ps1 | Out-File -Encoding utf8 probe.json

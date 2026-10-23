@@ -264,6 +264,13 @@ into each entry, so a row added later cannot forget who it hangs under. The same
 two fields travel in the structured `surfaces` array, so a client can draw the
 same shape instead of parsing the text.
 
+The client does exactly that: opening a listing renders **one element per line**,
+with the box-drawing characters kept in the text (they survive a copy, and a reader
+of the raw output still sees the hierarchy) and each line marked as a root, a
+child, or a `when:` note. The styling is what makes a child read as someone's
+child rather than as a sibling that happens to be indented. Every other call still
+opens as captured output -- a hierarchy and a log want different shapes.
+
 ## Why one tool and not seven
 
 Every registered tool spends part of the context on its description. Seven tools

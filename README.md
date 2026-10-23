@@ -226,14 +226,58 @@ Two kinds of entry are dropped on purpose, because a face that fails on every
 call is worse than no face:
 
 * a host with `User git` -- that speaks the git protocol, not a shell, and the far
-  side refuses anything else. Measured on this machine: its only entry is
-  `github.com` with `User git`, so the ssh family is empty here.
+  side refuses anything else. This machine's config carries `github.com` with
+  `User git`, and it is dropped for exactly that reason.
 * a wildcard (`Host *.internal`) -- that is a pattern for matching, not a
   destination that can be dialled.
 
 `BatchMode=yes` is not a preference. Without it a host that wants a password sits
 at a prompt nobody can type into, and the call reads as hung; with it, that host
 fails at once and says so.
+
+When ssh cannot get as far as the command it answers 255, and the result carries a
+note saying so: an unreachable host, a refused key or a changed host key is a
+surface-level problem, not a failed command. Measured 2026-10-24 by stopping the
+daemon and calling the surface (`exit=255`, `Connection refused`, note present);
+with the daemon up the same call answers and the note is absent.
+
+### Standing up a loopback destination, so the face can be tested at all
+
+This machine's ssh family was empty -- its only config entry is git-only -- and a
+face nobody can call is a claim, not a capability. Nothing here needs a second
+machine. Measured on this one (2026-10-24) with the distribution's own openssh
+10.3p1:
+
+```
+# inside the distribution, as root
+ssh-keygen -A                         # this image had no host keys at all
+mkdir -p /run/sshd
+/usr/sbin/sshd -p 2222 -o ListenAddress=127.0.0.1 \
+               -o PubkeyAuthentication=yes -o PasswordAuthentication=no
+```
+
+then one dedicated keypair on the Windows side, its public half in the
+distribution user's `~/.ssh/authorized_keys` (700 / 600), and this in
+`~/.ssh/config`:
+
+```
+Host dss-loopback
+  HostName 127.0.0.1
+  Port 2222
+  User nyarch
+  IdentityFile ~/.ssh/id_ed25519_loopback
+  IdentitiesOnly yes
+```
+
+`action="surfaces"` then reports `ssh-dss-loopback [remote]`, and a command
+through it answers in 367 ms. The daemon binds loopback only, accepts keys only,
+and does not survive a distribution restart -- the two lines above bring it back.
+
+A trap worth writing down: generating that key with `-N '""'` in PowerShell makes
+the two quote characters the passphrase. The symptom is not "wrong passphrase" --
+the server says `Server accepts key` and then the client never sends the signature
+(`we did not send a packet`), because BatchMode cannot ask. `ssh-keygen -y -P ''`
+is the check: it prints the public key when there is none.
 
 `rbash` is scanned and reported but given no face: a restricted shell refuses the
 first `cd`, `PATH` assignment or redirection, so a surface that looks like bash

@@ -15,7 +15,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { resolveSurfaces, surfaceSpecs, lastScan, describeSurfaces } from '../lib/surfaces.js';
+import { resolveSurfaces, surfaceSpecs, lastScan, describeSurfaces, openPathFor } from '../lib/surfaces.js';
 import { scan } from '../lib/discover.js';
 import { buildArgv, toWslPath } from '../lib/runner.js';
 import { apply, inject, name as pluginName } from '../lib/index.js';
@@ -161,6 +161,33 @@ for (const [id, flag] of [['python', '-c'], ['node', '-e']]) {
   const built = buildArgv(id, spec, { command: 'print(1)', script: '', cwd: '', send: [] });
   check(`${id} is an interpreter run with ${flag}`, built.argv.includes(flag) && spec.kind === 'interpreter');
 }
+
+// --- the terminal program -------------------------------------------------------
+
+// WezTerm is the one terminal program with a face, and it is not a shell: it is
+// driven through `wezterm cli spawn` / `get-text` rather than given a `-c`, so a
+// shell argv would be wrong for it. The face exists because its mux server can
+// answer both questions a window normally cannot (measured 2026-10-24).
+equal('wezterm is a terminal surface, not a shell', specs.wezterm.kind, 'terminal');
+check('a terminal surface carries no shell argv', specs.wezterm.argv === void 0);
+check('and its guide names the two calls that make it usable', /spawn/.test(specs.wezterm.guide) && /get-text|pane text/.test(specs.wezterm.guide));
+
+// A window that can only START a process gets the shim instead: the host runs
+// `node scripts/dss-exec.mjs`, the shim writes a structured result, and this side
+// polls for the file (measured 2026-10-24: wt and mintty both answered in under
+// 60 ms with the right exit code).
+for (const id of ['wt', 'mintty']) {
+  const spec = specs[id];
+  if (spec === void 0) continue;
+  equal(`${id} is a shim-backed terminal surface`, spec.shim, true);
+  check(`${id} launches a program rather than taking a -c`, spec.launch !== void 0 && spec.argv === void 0);
+}
+check('the shim script exists', existsSync(join(import.meta.dirname, '..', 'scripts', 'dss-exec.mjs')));
+
+// "Reported but not a face" comes with a next step, not a shrug.
+check('a discovered terminal names how it can still carry a command', /shim|face|channel|session host/.test(openPathFor('tabby.exe')));
+check('git-shell gets a channel, not a shim', /channel/.test(openPathFor('git-shell')));
+check('a multiplexer is named as a session host', /session host/.test(openPathFor('tmux')));
 
 // --- the family tree ------------------------------------------------------------
 

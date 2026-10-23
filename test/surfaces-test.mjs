@@ -12,7 +12,7 @@
 //
 // Run: node test/surfaces-test.mjs
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { resolveSurfaces, surfaceSpecs, lastScan, describeSurfaces, openPathFor, scanSshHosts } from '../lib/surfaces.js';
@@ -163,6 +163,27 @@ for (const [id, flag] of [['python', '-c'], ['node', '-e'], ['perl', '-e']]) {
 }
 check('perl is asked not to warn about a locale it cannot honour', specs.perl.env?.PERL_BADLANG === '0');
 
+// --- cscript: the one surface whose input is a file -----------------------------
+
+// `cscript //nologo` takes a .vbs path and has no `-c`, so the command has to
+// land in a file first. What matters is that the code never reaches argv and the
+// file is reported back for removal (measured 2026-10-24: the run answered
+// "cscript-face-ok" and the spill directory did not grow).
+const cscriptBuilt = buildArgv('cscript', specs.cscript, { command: 'WScript.Echo "x"', script: '', cwd: '', send: [] });
+check('cscript is handed a file, not the code', cscriptBuilt.argv.at(-1).endsWith('.vbs'));
+check('the code itself never appears in argv', !cscriptBuilt.argv.includes('WScript.Echo "x"'));
+check(
+  'the inline file is listed so the caller can remove it',
+  (cscriptBuilt.cleanup ?? []).length === 1 && cscriptBuilt.cleanup[0].endsWith('.vbs'),
+);
+for (const file of cscriptBuilt.cleanup ?? []) {
+  try {
+    unlinkSync(file);
+  } catch {
+    /* the assertion above already covered the path */
+  }
+}
+
 // --- ssh destinations -----------------------------------------------------------
 
 // A `User git` host and a wildcard are not destinations a command can be sent
@@ -198,7 +219,14 @@ for (const id of ['wt', 'mintty']) {
 check('the shim script exists', existsSync(join(import.meta.dirname, '..', 'scripts', 'dss-exec.mjs')));
 
 // "Reported but not a face" comes with a next step, not a shrug.
-check('a discovered terminal names how it can still carry a command', /shim|face|channel|session host/.test(openPathFor('tabby.exe')));
+check(
+  'every discovered terminal comes back with a next step',
+  /shim|face|channel|session host|no cli|not a launcher/.test(openPathFor('tabby.exe')),
+);
+// Tabby has no executable entry, so a shim recipe would be advice nobody can
+// follow. Measured 2026-10-24: Electron switches only, no `-e` and no
+// `new-tab -- <program>`.
+check('Tabby is named as having no cli rather than a shim recipe', /no cli/.test(openPathFor('tabby.exe')));
 check('git-shell gets a channel, not a shim', /channel/.test(openPathFor('git-shell')));
 check('a multiplexer is named as a session host', /session host/.test(openPathFor('tmux')));
 

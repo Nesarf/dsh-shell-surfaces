@@ -97,6 +97,9 @@ const WINDOWS_CASES = {
   python: { command: 'print(6*7)' },
   node: { command: 'console.log(6*7)' },
   perl: { command: 'print 6*7, "\\n"' },
+  // The one surface whose input is a file: the command is a VBScript body, and
+  // the inline-file mechanism writes it out before cscript ever runs.
+  cscript: { command: 'WScript.Echo 6*7' },
   pty: { command: `powershell -NoProfile -ExecutionPolicy Bypass -File ${ptyGate}`, send: ['y\n'] },
 };
 
@@ -142,6 +145,7 @@ const EXPECT = {
   python: { re: /^\s*42\s*$/m, why: 'Python answered' },
   node: { re: /^\s*42\s*$/m, why: 'Node answered' },
   perl: { re: /^\s*42\s*$/m, why: 'Perl answered' },
+  cscript: { re: /^\s*42\s*$/m, why: 'Windows Script Host answered from a temporary .vbs' },
   wt: { re: /wt-ok/, why: 'the shim carried a command into a Windows Terminal tab' },
   mintty: { re: /mintty-ok/, why: 'the shim carried a command into a mintty window' },
   wezterm: { re: /wezterm-ok/, why: 'a wezterm pane answered and was read back' },

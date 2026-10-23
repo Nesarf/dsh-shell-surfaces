@@ -172,6 +172,12 @@ machine, a Perl run under the UTF-8 request warns about a locale it cannot honou
 before printing anything, and that warning arrives on stderr on every single call.
 The variable silences exactly that warning and changes nothing else.
 
+`cscript` is the one interpreter whose input is a **file**: `cscript //nologo`
+takes a `.vbs` path and has no `-c`. That is what `inlineFile` exists for -- the
+command is written to a temporary `.vbs` in the spill directory, cscript runs it,
+and the file is removed the moment the run settles. Measured: the code never
+appears in argv, and the spill directory does not grow across calls.
+
 ## An ssh destination is a surface
 
 The host list comes from the user's own `~/.ssh/config`, and `ssh <host>
@@ -267,7 +273,7 @@ hopes the host cooperates.
 
 | Shape | Opening | Measured |
 | --- | --- | --- |
-| a window that keeps its output (Windows Terminal, mintty, Tabby) | the **shim**: the window runs `node scripts/dss-exec.mjs`, the shim runs the command and writes `{exitCode, stdout, stderr}` to a file, and this tool polls that file | `wt` answered `wt-ok` in 53 ms and carried `cmd /c exit 5` back as exit 5; `mintty` answered in 39 ms; both are faces now |
+| a window that keeps its output (Windows Terminal, mintty) | the **shim**: the window runs `node scripts/dss-exec.mjs`, the shim runs the command and writes `{exitCode, stdout, stderr}` to a file, and this tool polls that file | `wt` answered `wt-ok` in 53 ms and carried `cmd /c exit 5` back as exit 5; `mintty` answered in 39 ms; both are faces now |
 | a program with its own control channel (WezTerm) | the **pane**: `wezterm cli spawn` gives a pane a command, `get-text` reads the screen back | `wezterm-ok` in 225 ms, `ver` in 227 ms |
 | a program that refuses everything else on purpose (`git-shell`) | the **channel**: it accepts only git transport, so a `pre-receive` hook in a bare repository runs on push and its output rides back on the push report | `git-shell -c 'echo x'` answers `fatal: unrecognized command` -- the refusal is the design, so the opening is another protocol, not a wrapper |
 | a multiplexer (`tmux`, `zellij`, `abduco`) | the **session host**: driven headless (`new-session -d` + `capture-pane`) rather than as a window | `capture-pane` returned `tmux-ok` and `rc=0` from a detached session |
@@ -275,6 +281,12 @@ hopes the host cooperates.
 `rbash` and `mshta` are the remaining pair: rbash refuses `cd`, `PATH` changes and
 redirection (a plain `bash -c` from a non-restricted shell restores them), and an
 HTA host can start the shim like any other launcher.
+
+**Tabby was checked and left out.** It takes Electron switches only -- no `-e`, no
+`new-tab -- <program>` -- so carrying a command through it would mean editing a
+profile in its config per command, which is not a way to carry one. The scan still
+reports it; `openWith` says `no cli` and names the three windows that do have an
+entry.
 
 `action="surfaces"` carries this per program: every discovered terminal comes
 back with an `openWith` line, so "reported but not a face" is a next step rather

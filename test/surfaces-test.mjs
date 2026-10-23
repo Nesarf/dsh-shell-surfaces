@@ -135,6 +135,15 @@ check(
   })(),
 );
 check('and asks bash for a stdin script rather than a command argument', specs.wsl.session.argvFor(specs.wsl).includes('-s'));
+if (specs.fish !== void 0) {
+  // fish refuses `-s` and treats a piped stdin as a script file, so its session
+  // keeps stdin away from the parser and reads it with fish's own `read`. A plain
+  // `-l` argv measured as silence in a live session (2026-10-24).
+  check(
+    'fish reads its session through its own line reader',
+    (specs.fish.session?.argv ?? []).join(' ').includes('while read'),
+  );
+}
 if (specs['wsl-elvish'] !== void 0) {
   check(
     'a derived wsl face does not inherit the bash session',

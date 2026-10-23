@@ -106,11 +106,13 @@ Six surfaces carry a session, in three shapes:
   2026-10-24: `cd /tmp && export DSS_PROBE=41` then `echo "$DSS_PROBE:$(pwd)"`
   answered `41:/tmp` -- the directory and the variable both survived.
 
-`fish` has none, on purpose. Measured 2026-10-24: it treats stdin as a script
-**file** and waits for EOF before running any of it, so a session that writes one
-command at a time gets silence -- with `-l`, and with `-l -i` as well. It answers a
-one-shot `input:` perfectly, which is why the table only found this by trying to
-keep one alive.
+`fish` needed a different shape rather than a refusal. It treats a piped stdin as
+a script **file** and waits for EOF before running any of it -- measured
+2026-10-24, with `-l` and with `-l -i` alike, a session that writes one command at
+a time got silence. The opening is to keep stdin away from the script parser: the
+session argv runs fish's own line reader, `while read -l dss_line; eval
+$dss_line; end`, so each line is evaluated on its own. Measured: `cd /tmp` and
+`set -x DSS_X 41` survived into the next call as `X=41;P=/tmp`.
 
 A derived `wsl-<shell>` face deliberately has **no** session: the session's argv
 is `bash -l -s`, so a session there would quietly run bash while the row claims

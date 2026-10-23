@@ -293,6 +293,33 @@ installed -- `yash`, `posh`, `oksh` -- are already in the candidate table;
 install one and the next scan reports it, and promoting it to a face is a
 two-line change.
 
+## A container is a face too
+
+podman inside the distribution (rootless) is one more place a command can run:
+`podman run --rm <image> sh -c '<command>'`, handed over on stdin the same way a
+derived shell's command is. It is deliberately throwaway -- a face is one command,
+not a session -- so nothing persists between calls; when state matters, `wsl` is
+the surface to use. The face appears only when the scan finds podman inside a
+distribution, so a machine without one reports nothing rather than a face that
+fails on every call. `DSH_PODMAN_IMAGE` picks the image (default
+`docker.io/library/alpine:latest`) and the first call pulls it.
+
+Two unrelated things had to be fixed before it would run on this image
+(2026-10-24), and neither was podman's fault:
+
+* `libphonenumber` pinned an older protobuf than podman wanted. Upgrading the two
+  together resolved it -- the repository's current `libphonenumber` already
+  depends on the new protobuf.
+* the pacman keyring was a 32-byte empty `pubring.kbx`, and every install failed
+  with `keyring is not writable`. `pacman-key --init` plus `--populate archlinux`
+  rebuilt it with 180 keys. Note that `pkill -f gpg-agent` is the wrong way to
+  quiet the agent: the pattern matches the shell running it, which kills the
+  command itself.
+* rootless podman needs `libsubid.so.6`, which the installed `shadow` (4.18.0) did
+  not provide; that package was upgraded for it. With subuid/subgid already in
+  place, the container then ran on the first try: `container-face-ok` and
+  `ID=alpine` in 2.6 s.
+
 ## The list is a tree
 
 `action="surfaces"` draws the table as a tree, because a userland that hosts

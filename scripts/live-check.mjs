@@ -100,6 +100,9 @@ const WINDOWS_CASES = {
   // The one surface whose input is a file: the command is a VBScript body, and
   // the inline-file mechanism writes it out before cscript ever runs.
   cscript: { command: 'WScript.Echo 6*7' },
+  // A container is a place to run a command, so it is asked the same question the
+  // other faces are. Absent on a machine without podman, where this case skips.
+  podman: { command: 'echo podman-ok; head -1 /etc/os-release' },
   pty: { command: `powershell -NoProfile -ExecutionPolicy Bypass -File ${ptyGate}`, send: ['y\n'] },
 };
 

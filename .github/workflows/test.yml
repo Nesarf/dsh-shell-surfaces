@@ -59,16 +59,14 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '24'
-      - name: ask every surface in the table what it is
+      - name: ask every surface in the table what it is (one run, two readers)
         shell: pwsh
         run: |
-          node scripts/probe-faces.mjs | Out-File -Encoding utf8 faces.json
-          node scripts/probe-table.mjs faces.json
+          $env:LIVE_CHECK_JSON = '1'
+          node scripts/live-check.mjs > live.json
+          node scripts/probe-table.mjs live.json
       - name: ask the terminals and the long-standing shells what they are
         shell: pwsh
         run: |
           ./scripts/probe-all-shells.ps1 | Out-File -Encoding utf8 probe.json
           node scripts/probe-table.mjs probe.json
-      - name: run one real command on every surface that exists here
-        shell: pwsh
-        run: node scripts/live-check.mjs

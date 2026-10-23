@@ -95,12 +95,13 @@ with a pipe, not a terminal -- a random nonce line marks where one command's
 output ends, which is the only signal every supported shell prints without a
 prompt.
 
-Six surfaces carry a session, in three shapes:
+Ten surfaces carry a session, in three shapes:
 
-* `pwsh`, `msys`, `git-bash` and `zsh` keep `exe` + a flag list (`-Command -` /
-  `-l -s`), which is the default shape.
-* `dash` has no `-l` at all -- it is the strict POSIX sh by design -- so its
-  session is `-s` under the PATH the table sets.
+* `pwsh`, `msys`, `git-bash`, `zsh` and `tcsh` keep `exe` + a flag list
+  (`-Command -` / `-l -s` / `-s`), which is the default shape.
+* `dash`, `brush` and `busybox` have no login flag to give (dash is the strict
+  POSIX sh by design, brush has no mount table, and BusyBox is ash), so their
+  session is `-s` under the PATH the table sets -- `busybox sh -s` for the last.
 * `wsl` needs the **distribution on its command line** (`wsl.exe -d Nyarch --
   bash -l -s`), so its entry builds the argv itself through `argvFor`. Measured
   2026-10-24: `cd /tmp && export DSS_PROBE=41` then `echo "$DSS_PROBE:$(pwd)"`
@@ -113,6 +114,13 @@ a time got silence. The opening is to keep stdin away from the script parser: th
 session argv runs fish's own line reader, `while read -l dss_line; eval
 $dss_line; end`, so each line is evaluated on its own. Measured: `cd /tmp` and
 `set -x DSS_X 41` survived into the next call as `X=41;P=/tmp`.
+
+A session is a real process, and nothing closes one but plugin unload -- so the
+pool sweeps idle sessions before each session call (`reapIdleSessions`, thirty
+minutes by default, `DSH_SESSION_IDLE_MS` to change it) and can drop one owner's
+sessions without touching anyone else's. A call that closed something says so in
+its message, because the next call to that shell starting fresh is otherwise a
+surprise.
 
 A derived `wsl-<shell>` face deliberately has **no** session: the session's argv
 is `bash -l -s`, so a session there would quietly run bash while the row claims

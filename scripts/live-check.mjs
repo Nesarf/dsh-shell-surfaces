@@ -182,6 +182,12 @@ const cases = isWindows
   ? { ...COMMON_CASES, ...WINDOWS_CASES, ...windowCases, ...DISTRO_SHELL_CASES }
   : { ...COMMON_CASES };
 const wanted = named.length > 0 ? named : Object.keys(cases);
+
+// JSON mode: the human-readable lines go to stderr so stdout stays one JSON
+// document that probe-table.mjs can eat. The two readers want the same run --
+// "is it alive" and "what did it answer" are the same fact seen twice.
+const jsonMode = process.env.LIVE_CHECK_JSON === '1';
+const note = jsonMode ? (...args) => console.error(...args) : (...args) => console.log(...args);
 const surfaces = resolveSurfaces();
 
 if (wanted.length === 0) {
@@ -267,9 +273,9 @@ for (const id of wanted) {
   const ok = !result.timedOut && !result.spawnError && result.exitCode === 0 && answered;
   const shown = flatten(result.stdout) || '(empty)';
 
-  console.log(`${ok ? 'ok  ' : 'FAIL'} ${id}: exit=${result.exitCode} timedOut=${result.timedOut} ms=${ms}`);
-  console.log(`     stdout: ${shown}`);
-  if (result.stderr) console.log(`     stderr: ${flatten(result.stderr, 200)}`);
+  note(`${ok ? 'ok  ' : 'FAIL'} ${id}: exit=${result.exitCode} timedOut=${result.timedOut} ms=${ms}`);
+  note(`     stdout: ${shown}`);
+  if (result.stderr) note(`     stderr: ${flatten(result.stderr, 200)}`);
   if (ok) {
     rows.push({ id, state: 'pass', detail: shown, ms: String(ms) });
     tally.pass += 1;
@@ -283,8 +289,23 @@ for (const id of wanted) {
           : `exit code ${result.exitCode}`;
     rows.push({ id, state: 'fail', detail: why, ms: String(ms) });
     tally.fail += 1;
-    console.log(`     ${why}`);
+    note(`     ${why}`);
   }
+}
+
+// One run, two readers: the live check already asks each surface one real
+// command, and its answer IS the version census probe-faces.mjs used to ask for
+// separately. `LIVE_CHECK_JSON=1` hands that to probe-table.mjs (which the CI
+// step feeds straight in), while the human-readable lines go to stderr so the
+// JSON on stdout stays parseable.
+if (jsonMode) {
+  const shells = rows.map((row) => ({
+    shell: row.id,
+    ms: row.ms,
+    answer: row.state === 'pass' ? row.detail : `${row.state}: ${row.detail}`,
+  }));
+  process.stdout.write(JSON.stringify({ shells }));
+  process.exit(tally.fail > 0 ? 1 : 0);
 }
 
 if (process.env.GITHUB_STEP_SUMMARY) {

@@ -129,6 +129,21 @@ if (typeof exported.renderTree === 'function') {
   );
   check('a crossing gets its own section, apart from the treemap', edges !== null && edges.props.children.length === 2);
   check('and the crossing names both ends', edges.props.children[1].props.children.includes('\u2014'));
+
+  // A cell can be picked, and the pick is what makes the explanation reachable: at
+  // this size the map shows names only, and a tooltip cannot stay open while a
+  // paragraph is read.
+  const picked = exported.renderTree(listingText, 'wsl-ksh', () => {});
+  const pickedBands = picked.props.children[0].props.children;
+  equal(
+    'the picked cell says so',
+    pickedBands[0].props.children[1].props.children[1].props['data-selected'],
+    'yes',
+  );
+  const detail = picked.props.children[1];
+  equal('a picked face gets a detail block', detail.props.className, 'dss-tm-detail');
+  equal('the detail names the face and its kind', detail.props.children[0].props.children, 'wsl-ksh [shell]');
+  equal('and carries the summary and the when:', detail.props.children.length, 3);
 }
 
 // --- 3. apply registers the keyed row and its dictionaries ----------------------

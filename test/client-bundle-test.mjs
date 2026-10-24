@@ -98,19 +98,32 @@ if (typeof exported.renderTree === 'function') {
     '    wsl-ksh [shell] available',
     '        \u00b7 ksh inside the distribution',
     '',
+    '    \u00b7 crossings: faces that work together rather than live inside each other',
+    '        \u00b7 wt \u2014 node: the answer comes back through dss-exec.mjs',
   ].join('\n');
   const tree = exported.renderTree(listingText);
-  const rows = tree.props.children;
-  equal('a listing renders one element per non-empty line', rows.length, 5);
-  equal('a row carrying [kind] is a face', rows[0].props['data-state'], 'face');
-  equal('a row starting with the middle dot is a note', rows[1].props['data-state'], 'note');
-  equal('a nested face is still a face', rows[3].props['data-state'], 'face');
-  equal('the root face sits at depth 0', rows[0].props.style.paddingLeft, '0px');
-  equal('a child face sits one indent in', rows[3].props.style.paddingLeft, '18px');
-  equal('its note sits one indent deeper than the face it explains', rows[4].props.style.paddingLeft, '36px');
+
+  // The client receives one flattened string, so the block tree it builds is the
+  // structure: a face block, its notes, and its children nested inside.
+  const treeBlock = tree.props.children[0];
+  const edgesBlock = tree.props.children[1];
+  const rootBlock = treeBlock.props.children[0];
+  const rootBody = rootBlock.props.children[1];
+  const childBlock = rootBody.props.children[2];
+
+  equal('a face becomes a block', rootBlock.props['data-kind'], 'userland');
+  equal('the face name is its own span', rootBlock.props.children[0].props.children[0].props.children, 'wsl');
+  equal('its notes and its child live in one body', rootBody.props.children.length, 3);
+  equal('a note is a note, not a face', rootBody.props.children[0].props.className, 'dss-block-note');
+  equal('a child face nests inside the parent block', childBlock.props['data-kind'], 'shell');
+  equal('the child keeps its own notes', childBlock.props.children[1].props.children.length, 1);
   check(
-    'the depth travels with the row, so a stylesheet can target a level',
-    rows[3].props['data-depth'] === '1' && rows[4].props['data-depth'] === '2',
+    'a crossing gets its own section, apart from the tree',
+    edgesBlock !== null && edgesBlock.props.children.length === 2,
+  );
+  check(
+    'and the crossing names both ends',
+    edgesBlock.props.children[1].props.children.includes('\u2014'),
   );
 }
 

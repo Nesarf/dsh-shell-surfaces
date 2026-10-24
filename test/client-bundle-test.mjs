@@ -104,27 +104,30 @@ if (typeof exported.renderTree === 'function') {
   ].join('\n');
   const tree = exported.renderTree(listingText);
 
-  // The treemap: one band per kind, its width a `flex` value proportional to how
-  // many faces the kind holds, one cell per face inside. Weights are equal because
-  // a face has no size of its own.
+  // The treemap: family first. A face that owns children becomes a band of its own
+  // holding itself and its children, so the map shows the same ownership the tree
+  // does; a lone face falls back to its kind, which is the most useful thing left
+  // to say about it.
   const tm = tree.props.children[0];
   const edges = tree.props.children[1];
   const bands = tm.props.children;
 
-  equal('one band per kind', bands.length, 3);
-  equal('a band is a treemap group', bands[0].props.className, 'dss-tm-group');
-  equal('a band width follows its face count', bands[0].props.style.flex, '1');
-  equal('the band names its kind and count', bands[0].props.children[0].props.children, 'userland \u00b7 1');
-  equal('a face is a cell in its band', bands[0].props.children[1].props.children[0].props.children, 'wsl');
+  equal('a family band and a kind band', bands.length, 2);
+  equal('a family band says it is one', bands[0].props['data-family'], 'yes');
+  equal('the family band is named after its root face', bands[0].props.children[0].props.children, 'wsl \u00b7 2');
+  equal('its width is the family size', bands[0].props.style.flex, '2');
+  equal(
+    'the root face and its child share the band',
+    bands[0].props.children[1].props.children.map((cell) => cell.props.children).join(','),
+    'wsl,wsl-ksh',
+  );
+  equal('a lone face falls back to its kind', bands[1].props.children[0].props.children, 'remote \u00b7 1');
   equal(
     'an absent face is marked, not hidden',
-    bands[2].props.children[1].props.children[0].props['data-present'],
+    bands[1].props.children[1].props.children[0].props['data-present'],
     'no',
   );
-  check(
-    'a crossing gets its own section, apart from the treemap',
-    edges !== null && edges.props.children.length === 2,
-  );
+  check('a crossing gets its own section, apart from the treemap', edges !== null && edges.props.children.length === 2);
   check('and the crossing names both ends', edges.props.children[1].props.children.includes('\u2014'));
 }
 

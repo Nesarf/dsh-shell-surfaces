@@ -466,6 +466,13 @@ never got as far as a surface is not counted at all. A failure to write the file
 swallowed -- the count exists to make a picture better, and a picture is not worth
 failing a command over.
 
+The box the picture sits in is the grip. Drag its corner and the treemap re-lays
+itself out at the new size -- row height and column width together, because the
+browser is doing the layout and nothing here computes a second one. It starts 380 px
+tall, will not go below 320 x 220 (under that the drawing stops being readable) or
+above 80 vh (over that it pushes the conversation off the screen), and scrolls while
+the treemap keeps a 760 px floor and the crossing graph 460 px.
+
 Every other call keeps the click, because its output can be a screenful nobody wants
 by default.
 

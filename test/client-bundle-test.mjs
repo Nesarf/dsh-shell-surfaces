@@ -352,6 +352,19 @@ equal('a preparing call says so', preparing.props.title, '准备中');
 equal('a preparing call has no activity yet', activityOf(preparing), '');
 equal('a preparing call is not expandable', preparing.props.expandable, false);
 
+// --- 4b. the pictures scroll rather than shrink --------------------------------
+
+// Below a floor the two drawings stop being readable, and shrinking them further is
+// the same as not showing them: each keeps a minimum width and its container scrolls
+// sideways instead. The box is also the grip -- `resize: both` is what makes the row
+// height and the column width adjustable without this file computing either.
+check('the picture box scrolls instead of shrinking', /\.dss-tree\{[^}]*overflow:auto/.test(source));
+check('and the box is the resize grip', /\.dss-tree\{[^}]*resize:both/.test(source));
+check('with a height the reader can grow', /\.dss-tree\{[^}]*height:380px/.test(source));
+check('the treemap fills whatever height it is given', /\.dss-tm\{[^}]*flex:1 1 auto/.test(source));
+check('the treemap keeps a minimum width', /\.dss-tm\{[^}]*min-width:760px/.test(source));
+check('the crossing graph keeps a minimum width', /\.dss-xy\{[^}]*min-width:460px/.test(source));
+
 // --- 5. report -----------------------------------------------------------------
 
 if (failures.length > 0) {

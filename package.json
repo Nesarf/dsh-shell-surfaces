@@ -45,11 +45,11 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-sandbox": "0.2.0-rc.2"
+    "@deepseek-ai/dsh-sandbox": ">=0.2.0-rc.2 <0.3.0-0"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh": ">=0.2.0-rc.2 <0.3.0-0",
-    "@deepseek-ai/dsh-sandbox": "0.2.0-rc.2"
+    "@deepseek-ai/dsh-sandbox": ">=0.2.0-rc.2 <0.3.0-0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh": {

@@ -33,6 +33,32 @@ shell_surfaces(action="run", surface="pwsh", command="Get-CimInstance Win32_Oper
 shell_surfaces(action="run", surface="pty",  command="powershell -File install.ps1", send=["y\n"])
 ```
 
+## Contents
+
+The file is long because each section answers a question a person actually asked
+while using this, and the answer is not one sentence. The map below is the short
+version: read the section you need, skip the rest.
+
+| What you want to know | Where |
+| --- | --- |
+| is PowerShell still the fallback? | [PowerShell is a surface here](#powershell-is-a-surface-here) |
+| can a command outlive the call? | [Background work stays here too](#background-work-stays-here-too) |
+| does confinement apply here? | [The same sandbox as the built-in shell tools](#the-same-sandbox-as-the-built-in-shell-tools) |
+| can state survive between calls? | [Persistent sessions](#persistent-sessions) |
+| what else is installed on this machine? | [Finding this machine's shells](#finding-this-machines-shells) |
+| run Python, Perl, JS, VBScript | [Interpreters are faces too](#interpreters-are-faces-too) |
+| reach another machine | [An ssh destination is a surface](#an-ssh-destination-is-a-surface) |
+| run it in a container | [A container is a face too](#a-container-is-a-face-too) |
+| what does the list look like? | [The list is a tree](#the-list-is-a-tree) |
+| which faces work together? | [Who works with whom](#who-works-with-whom) |
+| why one tool instead of many? | [Why one tool and not seven](#why-one-tool-and-not-seven) |
+| what does a call render as? | [The row a call renders as](#the-row-a-call-renders-as) |
+| a surface refuses to answer | [Opening a path instead of refusing it](#opening-a-path-instead-of-refusing-it) |
+| what is deliberately not supported? | [What it is not](#what-it-is-not) |
+| why are the arguments shaped that way? | [The facts behind the argument lists](#the-facts-behind-the-argument-lists) |
+| how do I run the checks? | [Verification](#verification) |
+| what is still unverified? | [Honest boundaries](#honest-boundaries) |
+
 ## PowerShell is a surface here
 
 "Fall back to pwsh" used to mean "leave this tool and use the other one". The

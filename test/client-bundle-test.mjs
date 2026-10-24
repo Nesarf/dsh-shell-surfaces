@@ -94,6 +94,8 @@ if (typeof exported.renderTree === 'function') {
   const listingText = [
     'wsl [userland] available',
     '    \u00b7 a whole Linux userland',
+    '    wsl-zsh [shell] available',
+    '        \u00b7 zsh inside the distribution',
     '    wsl-ksh [shell] available',
     '        \u00b7 ksh inside the distribution',
     'gone [remote] not on this machine (add a host)',
@@ -101,6 +103,7 @@ if (typeof exported.renderTree === 'function') {
     '',
     '    \u00b7 crossings: faces that work together rather than live inside each other',
     '        \u00b7 wt \u2014 node: the answer comes back through dss-exec.mjs',
+    '        \u00b7 mintty \u2014 node: also through dss-exec.mjs',
     '    \u00b7 found, without a face of its own:',
     '        \u00b7 tmux (session host: drive it headless) \u2014 terminal from wsl:Nyarch',
   ].join('\n');
@@ -116,12 +119,12 @@ if (typeof exported.renderTree === 'function') {
 
   equal('a family band, a kind band, and a found band', bands.length, 3);
   equal('a family band says it is one', bands[0].props['data-family'], 'yes');
-  equal('the family band is named after its root face', bands[0].props.children[0].props.children, 'wsl \u00b7 2');
-  equal('its width is the family size', bands[0].props.style.flex, '2');
+  equal('the family band is named after its root face', bands[0].props.children[0].props.children, 'wsl \u00b7 3');
+  equal('its width is the family size', bands[0].props.style.flex, '3');
   equal(
-    'the root face and its child share the band',
+    'the cell order is by name, not by the order the table happened to write',
     bands[0].props.children[1].props.children.map((cell) => cell.props.children).join(','),
-    'wsl,wsl-ksh',
+    'wsl,wsl-ksh,wsl-zsh',
   );
   equal('a lone face falls back to its kind', bands[1].props.children[0].props.children, 'remote \u00b7 1');
   equal(
@@ -138,13 +141,18 @@ if (typeof exported.renderTree === 'function') {
   const nodes = shapes.filter((shape) => shape.props.className === 'dss-xy-node');
   const curves = shapes.filter((shape) => shape.props.className === 'dss-xy-line');
   equal('the crossings are drawn, not listed', graph.props.className, 'dss-xy');
-  equal('both ends of the edge get a node', nodes.length, 2);
-  equal('and one curve joins them', curves.length, 1);
+  equal('every distinct end gets a node', nodes.length, 3);
+  equal('one curve per edge', curves.length, 2);
   equal(
     'the curve carries the reason',
     curves[0].props.children.props.children,
     'the answer comes back through dss-exec.mjs',
   );
+  // Both columns are ordered by how much they are used, then by name: `node` is
+  // borrowed twice and sits alone on the right, and the two borrowers tie.
+  const labelOrder = shapes.filter((shape) => shape.type === 'text').map((shape) => shape.props.children);
+  equal('the borrowing column is ordered by weight, then name', labelOrder.slice(0, 2).join(','), 'mintty,wt');
+  equal('the borrowed column follows it', labelOrder[2], 'node');
   check('a drawn node is labelled with its face', shapes.some((shape) => shape.type === 'text' && shape.props.children === 'wt'));
 
   // A cell can be picked, and the pick is what makes the explanation reachable: at

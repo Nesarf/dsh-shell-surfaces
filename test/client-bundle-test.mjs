@@ -130,7 +130,22 @@ if (typeof exported.renderTree === 'function') {
     'no',
   );
   check('a crossing gets its own section, apart from the treemap', edges !== null && edges.props.children.length === 2);
-  check('and the crossing names both ends', edges.props.children[1].props.children.includes('\u2014'));
+
+  // The crossings are a drawing: two columns, one curve per edge, the reason on the
+  // curve. Seven edges and eleven nodes is a size where this beats a list.
+  const graph = edges.props.children[1];
+  const shapes = graph.props.children;
+  const nodes = shapes.filter((shape) => shape.props.className === 'dss-xy-node');
+  const curves = shapes.filter((shape) => shape.props.className === 'dss-xy-line');
+  equal('the crossings are drawn, not listed', graph.props.className, 'dss-xy');
+  equal('both ends of the edge get a node', nodes.length, 2);
+  equal('and one curve joins them', curves.length, 1);
+  equal(
+    'the curve carries the reason',
+    curves[0].props.children.props.children,
+    'the answer comes back through dss-exec.mjs',
+  );
+  check('a drawn node is labelled with its face', shapes.some((shape) => shape.type === 'text' && shape.props.children === 'wt'));
 
   // A cell can be picked, and the pick is what makes the explanation reachable: at
   // this size the map shows names only, and a tooltip cannot stay open while a

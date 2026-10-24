@@ -400,11 +400,31 @@ holds, and one cell per face inside the band. Weights are equal because a face h
 size of its own -- counting faces is the only honest weight here. That choice is
 deliberate: a coordinate layout computed once would be right for one window width
 and wrong for every other, while a layout engine that already exists and already
-handles resizing is the better tool. An absent face is dimmed and struck through
-rather than hidden, so the map says what is missing as plainly as what is there.
+handles resizing is the better tool.
 
-Hovering a cell shows the face's summary; the tree, its notes and its indentation
-stay in the text, which is what the model and a copied answer get.
+Grouping is **family first**: a face that owns children becomes a band of its own,
+holding itself and its children, so the map shows the same ownership the tree does.
+A lone face falls back to its kind, which is the most useful thing left to say about
+it. Family bands are drawn heavier than kind bands because they are a different
+claim. An absent face is dimmed and struck through rather than hidden.
+
+Three things the picture can do that the text cannot:
+
+* **pick a cell.** At 320 pixels for thirty-five cells the map can only show names,
+  so a click opens a detail block under it with that face's summary and its full
+  `when:`. A tooltip cannot stay open while a paragraph is read.
+* **say what is not a face.** The scan finds programs that never become rows --
+  `conhost.exe`, `tmux`, `screen`, `zellij`, `abduco`, `kitty`, `gnome-terminal` on
+  this machine. They get a dashed band of their own: putting them among the faces
+  would make the map lie, and dropping them would withhold the answer a reader most
+  often needs next. The text lists only the ones with no face at all, using
+  `openWith` as the discriminator (`face: ...` means the face exists; `shim` or
+  `session host` means it does not).
+* **draw the crossings.** Seven edges and eleven nodes is a size where a drawing
+  beats a list, so the collaborations are a two-column graph: the borrowing face on
+  the left, the borrowed one on the right, one curve per edge, the reason on the
+  curve's tooltip. The `a — b: how` text form stays in the host output, which is what
+  a model and a copied answer get.
 
 Every other call keeps the click, because its output can be a screenful nobody wants
 by default.

@@ -432,9 +432,16 @@ hopes the host cooperates.
 | a program that refuses everything else on purpose (`git-shell`) | the **channel**: it accepts only git transport, so a `pre-receive` hook in a bare repository runs on push and its output rides back on the push report | `git-shell -c 'echo x'` answers `fatal: unrecognized command` -- the refusal is the design, so the opening is another protocol, not a wrapper |
 | a multiplexer (`tmux`, `zellij`, `abduco`) | the **session host**: driven headless (`new-session -d` + `capture-pane`) rather than as a window | `capture-pane` returned `tmux-ok` and `rc=0` from a detached session |
 
-`rbash` and `mshta` are the remaining pair: rbash refuses `cd`, `PATH` changes and
-redirection (a plain `bash -c` from a non-restricted shell restores them), and an
-HTA host can start the shim like any other launcher.
+Two more openings, both measured 2026-10-24:
+
+* `rbash` refuses `cd`, `PATH` changes and redirection (`rbash -c 'cd /tmp'` answers
+  `cd: restricted`), and a plain `bash -c` from a non-restricted shell restores all
+  three -- the opening is a second shell, not a flag.
+* `mshta` starts the shim like any other launcher: an HTA page whose
+  `WScript.Shell.Run(..., 0, True)` runs `dss-exec.mjs` with the child window hidden.
+  Measured: the report came back with `mshta-ok` in 316 ms and mshta itself exited in
+  1.3 s -- it does not hang the caller the way `wt --help` did. (`node` still has to
+  be on PATH; an HTA has no shell to inherit one from.)
 
 **Tabby needed a different opening.** It takes Electron switches only -- no `-e`,
 no `new-tab -- <program>` -- but it does have `tabby profile <name>`, and a local

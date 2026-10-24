@@ -94,37 +94,38 @@ if (typeof exported.renderTree === 'function') {
   const listingText = [
     'wsl [userland] available',
     '    \u00b7 a whole Linux userland',
-    '    \u00b7 when: the job needs Linux',
     '    wsl-ksh [shell] available',
     '        \u00b7 ksh inside the distribution',
+    'gone [remote] not on this machine (add a host)',
+    '    \u00b7 a remote shell',
     '',
     '    \u00b7 crossings: faces that work together rather than live inside each other',
     '        \u00b7 wt \u2014 node: the answer comes back through dss-exec.mjs',
   ].join('\n');
   const tree = exported.renderTree(listingText);
 
-  // The client receives one flattened string, so the block tree it builds is the
-  // structure: a face block, its notes, and its children nested inside.
-  const treeBlock = tree.props.children[0];
-  const edgesBlock = tree.props.children[1];
-  const rootBlock = treeBlock.props.children[0];
-  const rootBody = rootBlock.props.children[1];
-  const childBlock = rootBody.props.children[2];
+  // The treemap: one band per kind, its width a `flex` value proportional to how
+  // many faces the kind holds, one cell per face inside. Weights are equal because
+  // a face has no size of its own.
+  const tm = tree.props.children[0];
+  const edges = tree.props.children[1];
+  const bands = tm.props.children;
 
-  equal('a face becomes a block', rootBlock.props['data-kind'], 'userland');
-  equal('the face name is its own span', rootBlock.props.children[0].props.children[0].props.children, 'wsl');
-  equal('its notes and its child live in one body', rootBody.props.children.length, 3);
-  equal('a note is a note, not a face', rootBody.props.children[0].props.className, 'dss-block-note');
-  equal('a child face nests inside the parent block', childBlock.props['data-kind'], 'shell');
-  equal('the child keeps its own notes', childBlock.props.children[1].props.children.length, 1);
-  check(
-    'a crossing gets its own section, apart from the tree',
-    edgesBlock !== null && edgesBlock.props.children.length === 2,
+  equal('one band per kind', bands.length, 3);
+  equal('a band is a treemap group', bands[0].props.className, 'dss-tm-group');
+  equal('a band width follows its face count', bands[0].props.style.flex, '1');
+  equal('the band names its kind and count', bands[0].props.children[0].props.children, 'userland \u00b7 1');
+  equal('a face is a cell in its band', bands[0].props.children[1].props.children[0].props.children, 'wsl');
+  equal(
+    'an absent face is marked, not hidden',
+    bands[2].props.children[1].props.children[0].props['data-present'],
+    'no',
   );
   check(
-    'and the crossing names both ends',
-    edgesBlock.props.children[1].props.children.includes('\u2014'),
+    'a crossing gets its own section, apart from the treemap',
+    edges !== null && edges.props.children.length === 2,
   );
+  check('and the crossing names both ends', edges.props.children[1].props.children.includes('\u2014'));
 }
 
 // --- 3. apply registers the keyed row and its dictionaries ----------------------

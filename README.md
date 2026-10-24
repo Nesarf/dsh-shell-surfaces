@@ -390,12 +390,24 @@ flat list says nothing about who owns what:
 The relation is derived (`family` / `parent` on every row) rather than written
 into each entry, so a row added later cannot forget who it hangs under.
 
-The client draws the same shape, and a listing is **always open**: it is a map of
-the machine rather than a log to peek at, so the tree shows without a click. Depth
-becomes `padding-left` (18 px per level) instead of spaces, which holds up when the
-window is narrow, and each row carries `data-depth` and `data-state` (`face` or
-`note`) so a stylesheet can address a level. Every other call keeps the click,
-because its output can be a screenful nobody wants by default.
+The text above is what a reader and a model see. The **client draws a treemap**
+instead, and a listing is always open -- it is a map of the machine rather than a log
+to peek at.
+
+The layout is done by flexbox rather than by arithmetic in the plugin: one vertical
+band per kind, its width a `flex` value proportional to how many faces the kind
+holds, and one cell per face inside the band. Weights are equal because a face has no
+size of its own -- counting faces is the only honest weight here. That choice is
+deliberate: a coordinate layout computed once would be right for one window width
+and wrong for every other, while a layout engine that already exists and already
+handles resizing is the better tool. An absent face is dimmed and struck through
+rather than hidden, so the map says what is missing as plainly as what is there.
+
+Hovering a cell shows the face's summary; the tree, its notes and its indentation
+stay in the text, which is what the model and a copied answer get.
+
+Every other call keeps the click, because its output can be a screenful nobody wants
+by default.
 
 ### Who works with whom
 

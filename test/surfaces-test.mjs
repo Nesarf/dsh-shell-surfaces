@@ -335,9 +335,16 @@ if (resolvedTree['wsl-elvish'] !== void 0) {
 equal('a standalone shell has no family', resolvedTree.pwsh.family, '');
 
 const treeText = describeSurfaces(resolvedTree);
-check('the tree draws a userland child under its parent', /├─ zsh \[/.test(treeText) || /└─ zsh \[/.test(treeText));
-check('a child row carries one connector, not two dashes', !/├─ - /.test(treeText) && !/└─ - /.test(treeText));
-check('a root row still reads as a list item', /^- wsl \[/.test(treeText) || /^- msys \[/.test(treeText));
+// Depth is whitespace, not box-drawing characters: a face line starts at its own
+// indent, and the two note lines that explain it sit one level in, led by a middle
+// dot so they cannot be read as another surface (asked for 2026-10-24).
+check('the tree puts a userland child one indent under its parent', /^ {4}zsh \[shell\]/m.test(treeText));
+check('a root face sits at the left edge', /^msys \[userland\]/m.test(treeText) || /^wsl \[userland\]/m.test(treeText));
+check(
+  'a note is led by the middle dot and sits deeper than the face it explains',
+  /^ {4}\u00b7 when: /m.test(treeText),
+);
+check('no box-drawing character is left in the tree', !/[\u251c\u2514\u2502]/.test(treeText));
 
 // --- the MSYS family ------------------------------------------------------------
 

@@ -359,27 +359,43 @@ inside the distribution, which is the same trap the `wsl` surface's own commands
 several shells is one place with children:
 
 ```
-- wsl [userland] available
-├─ wsl-elvish [shell] available
-├─ wsl-ksh [shell] available
-└─ wsl-busybox [shell] available
-- msys [userland] available
-├─ zsh [shell] available
-├─ fish [shell] available
-└─ dash [shell] available
+wsl [userland] available
+    · a whole Linux userland (WSL2, default distribution Nyarch): the real grep -P, ...
+    · when: Use when the job needs something only Linux has: ...
+    wsl-zsh [shell] available
+        · zsh inside the Nyarch distribution, as a surface of its own
+        · when: Use when the command is written for zsh itself: ...
+    wsl-dash [shell] available
+        · dash inside the Nyarch distribution, as a surface of its own
+        · when: ...
+msys [userland] available
+    · the MSYS2 userland bash: a Unix userland on Windows, with pacman for its own packages
+    · when: ...
+    zsh [shell] available
+        · zsh inside MSYS2: the same userland as msys, a different shell language
 ```
 
-The relation is derived (`family` / `parent` on every row) rather than written
-into each entry, so a row added later cannot forget who it hangs under. The same
-two fields travel in the structured `surfaces` array, so a client can draw the
-same shape instead of parsing the text.
+The rule is the one a `tree` listing follows, and it is worth stating because a
+flat list says nothing about who owns what:
 
-The client does exactly that: opening a listing renders **one element per line**,
-with the box-drawing characters kept in the text (they survive a copy, and a reader
-of the raw output still sees the hierarchy) and each line marked as a root, a
-child, or a `when:` note. The styling is what makes a child read as someone's
-child rather than as a sibling that happens to be indented. Every other call still
-opens as captured output -- a hierarchy and a log want different shapes.
+* a face is printed at its own depth, four spaces per level;
+* its children are printed next, one level in, each at that same depth;
+* when the last child is done, the next face starts back at **its own** depth --
+  `msys` above begins at the left edge because it is a root, not because it is the
+  next line;
+* the two lines explaining a face sit one level in and are led by a middle dot
+  (`· summary`, `· when:`). A note carries no `[kind]`, which is what tells the two
+  apart at the same indentation.
+
+The relation is derived (`family` / `parent` on every row) rather than written
+into each entry, so a row added later cannot forget who it hangs under.
+
+The client draws the same shape, and a listing is **always open**: it is a map of
+the machine rather than a log to peek at, so the tree shows without a click. Depth
+becomes `padding-left` (18 px per level) instead of spaces, which holds up when the
+window is narrow, and each row carries `data-depth` and `data-state` (`face` or
+`note`) so a stylesheet can address a level. Every other call keeps the click,
+because its output can be a screenful nobody wants by default.
 
 ## Why one tool and not seven
 

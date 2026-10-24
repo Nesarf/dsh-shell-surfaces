@@ -92,22 +92,25 @@ check('the client declares its locale dependency', exported.inject.includes('loc
 check('the factory exports the tree renderer', typeof exported.renderTree === 'function');
 if (typeof exported.renderTree === 'function') {
   const listingText = [
-    '- wsl [userland] available',
-    '\u251c\u2500 wsl-ksh [shell] available',
-    '\u2514\u2500 wsl-elvish [shell] available',
-    '  when: the job needs Linux',
+    'wsl [userland] available',
+    '    \u00b7 a whole Linux userland',
+    '    \u00b7 when: the job needs Linux',
+    '    wsl-ksh [shell] available',
+    '        \u00b7 ksh inside the distribution',
     '',
   ].join('\n');
   const tree = exported.renderTree(listingText);
   const rows = tree.props.children;
-  equal('a listing renders one element per non-empty line', rows.length, 4);
-  equal('a root row is marked as a root', rows[0].props['data-state'], 'root');
-  equal('a child row is marked as a child', rows[1].props['data-state'], 'child');
-  equal('the last child is still a child', rows[2].props['data-state'], 'child');
-  equal('a when: line is a note', rows[3].props['data-state'], 'note');
+  equal('a listing renders one element per non-empty line', rows.length, 5);
+  equal('a row carrying [kind] is a face', rows[0].props['data-state'], 'face');
+  equal('a row starting with the middle dot is a note', rows[1].props['data-state'], 'note');
+  equal('a nested face is still a face', rows[3].props['data-state'], 'face');
+  equal('the root face sits at depth 0', rows[0].props.style.paddingLeft, '0px');
+  equal('a child face sits one indent in', rows[3].props.style.paddingLeft, '18px');
+  equal('its note sits one indent deeper than the face it explains', rows[4].props.style.paddingLeft, '36px');
   check(
-    'the box-drawing characters stay in the text, so a copy keeps the shape',
-    rows[1].props.children.includes('\u251c\u2500'),
+    'the depth travels with the row, so a stylesheet can target a level',
+    rows[3].props['data-depth'] === '1' && rows[4].props['data-depth'] === '2',
   );
 }
 

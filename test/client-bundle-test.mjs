@@ -176,6 +176,20 @@ if (typeof exported.renderTree === 'function') {
   equal('found programs get a band of their own', foundBand.props['data-found'], 'yes');
   equal('the band says what it counts', foundBand.props.children[0].props.children, 'found \u00b7 1');
   equal('and each entry is marked as not-a-face', foundBand.props.children[1].props.children[0].props['data-found'], 'yes');
+
+  // Weight: a face that has actually run gets more room than one that has not, and
+  // the count travels with the cell so the detail block can say it.
+  const weighted = exported.renderTree(
+    ['a [shell] available', 'b [shell] available \u00b7 8 runs'].join('\n'),
+    '',
+    () => {},
+  );
+  const weightedCells = weighted.props.children[0].props.children[0].props.children[1].props.children;
+  check(
+    'a face that ran gets more room than one that did not',
+    Number(weightedCells[1].props.style.flex) > Number(weightedCells[0].props.style.flex),
+  );
+  equal('and the count rides the cell', weightedCells[1].props['data-runs'], '8');
 }
 
 // --- 3. apply registers the keyed row and its dictionaries ----------------------

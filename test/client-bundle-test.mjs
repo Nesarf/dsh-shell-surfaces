@@ -101,6 +101,8 @@ if (typeof exported.renderTree === 'function') {
     '',
     '    \u00b7 crossings: faces that work together rather than live inside each other',
     '        \u00b7 wt \u2014 node: the answer comes back through dss-exec.mjs',
+    '    \u00b7 found, without a face of its own:',
+    '        \u00b7 tmux (session host: drive it headless) \u2014 terminal from wsl:Nyarch',
   ].join('\n');
   const tree = exported.renderTree(listingText);
 
@@ -112,7 +114,7 @@ if (typeof exported.renderTree === 'function') {
   const edges = tree.props.children[1];
   const bands = tm.props.children;
 
-  equal('a family band and a kind band', bands.length, 2);
+  equal('a family band, a kind band, and a found band', bands.length, 3);
   equal('a family band says it is one', bands[0].props['data-family'], 'yes');
   equal('the family band is named after its root face', bands[0].props.children[0].props.children, 'wsl \u00b7 2');
   equal('its width is the family size', bands[0].props.style.flex, '2');
@@ -144,6 +146,13 @@ if (typeof exported.renderTree === 'function') {
   equal('a picked face gets a detail block', detail.props.className, 'dss-tm-detail');
   equal('the detail names the face and its kind', detail.props.children[0].props.children, 'wsl-ksh [shell]');
   equal('and carries the summary and the when:', detail.props.children.length, 3);
+
+  // Programs the scan found without giving them a face: not in the map above, and
+  // not dropped either -- "this exists and has no face" is an answer.
+  const foundBand = bands[2];
+  equal('found programs get a band of their own', foundBand.props['data-found'], 'yes');
+  equal('the band says what it counts', foundBand.props.children[0].props.children, 'found \u00b7 1');
+  equal('and each entry is marked as not-a-face', foundBand.props.children[1].props.children[0].props['data-found'], 'yes');
 }
 
 // --- 3. apply registers the keyed row and its dictionaries ----------------------

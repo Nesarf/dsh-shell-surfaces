@@ -452,6 +452,20 @@ Three things the picture can do that the text cannot:
   curve's tooltip. The `a — b: how` text form stays in the host output, which is what
   a model and a copied answer get.
 
+A fourth thing the picture says, once there is data for it: **how much each face is
+used.** Every run increments a counter (in `shell-surfaces-usage.json` beside the
+harness home, or at `DSH_USAGE_FILE`), the face line carries ` · 3 runs`, and a cell
+is sized `1 + log2(1 + runs)`. The compression is not decoration -- a face run ten
+thousand times and one run ten should not differ a thousand-fold in area, or the map
+stops being readable at either end. Equal cells were the honest choice while nothing
+was known about use; they are a poor one once something is.
+
+The count is taken after the call rather than before: a face that failed to spawn was
+still reached, and a command that failed is still a run of its face. A request that
+never got as far as a surface is not counted at all. A failure to write the file is
+swallowed -- the count exists to make a picture better, and a picture is not worth
+failing a command over.
+
 Every other call keeps the click, because its output can be a screenful nobody wants
 by default.
 

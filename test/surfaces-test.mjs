@@ -346,6 +346,29 @@ check(
 );
 check('no box-drawing character is left in the tree', !/[\u251c\u2514\u2502]/.test(treeText));
 
+// A face can borrow another face without being its child: window faces run a Node
+// shim, and both container runtimes drive a daemon inside `wsl`. Those edges are
+// printed as their own section, because a parent link would claim ownership that
+// does not exist -- `node` is not inside `wt`, it is used by it.
+if (resolvedTree.wt !== void 0) {
+  check(
+    'a window face records the node shim as a crossing',
+    (resolvedTree.wt.cooperates ?? []).some((edge) => edge.with === 'node'),
+  );
+  check('and that crossing is not a parent link', (resolvedTree.wt.parent ?? '') === '');
+}
+if (resolvedTree.docker !== void 0) {
+  check(
+    'a container runtime records the distribution as a crossing',
+    (resolvedTree.docker.cooperates ?? []).some((edge) => edge.with === 'wsl'),
+  );
+}
+check('the crossings section names both ends of an edge', /\u00b7 wt \u2014 node: /.test(treeText));
+check(
+  'a crossing stays out of the tree proper, so no face is listed twice',
+  treeText.split('\n').filter((line) => /^\s*wt \[terminal\]/.test(line)).length === 1,
+);
+
 // --- the MSYS family ------------------------------------------------------------
 
 for (const id of ['msys', 'zsh', 'fish']) {

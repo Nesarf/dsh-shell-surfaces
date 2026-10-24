@@ -397,6 +397,31 @@ window is narrow, and each row carries `data-depth` and `data-state` (`face` or
 `note`) so a stylesheet can address a level. Every other call keeps the click,
 because its output can be a screenful nobody wants by default.
 
+### Who works with whom
+
+A tree can say who lives inside whom; it cannot say who works **with** whom. A
+window face is not a child of `node`, and a container runtime is not a child of
+`wsl` -- it drives a daemon that happens to run there. Those relations are recorded
+as edges (`cooperates` on a row) and printed as their own section, one line per
+edge:
+
+```
+    · crossings: faces that work together rather than live inside each other
+        · wt — node: the answer comes back through scripts/dss-exec.mjs
+        · wezterm — cmd: each pane runs a cmd /k command line
+        · docker — wsl: the daemon runs inside the distribution; this face only drives it
+```
+
+Two reasons it is a section rather than a second tree. An edge can join any two
+faces at any depth -- a window at the top and an interpreter at the top, a container
+and a userland -- so a line drawn between two rows would have to depend on where
+those rows happened to land, and the same table could then be read two ways.
+And the tree's job is ownership: a line that reads like a parent link is the one
+mistake this section exists to avoid. `node` is not inside `wt`; it is used by it.
+
+The client renders the section as notes, one per row, so it stays visually
+subordinate to the tree without pretending to be a child.
+
 ## Why one tool and not seven
 
 Every registered tool spends part of the context on its description. Thirty-two

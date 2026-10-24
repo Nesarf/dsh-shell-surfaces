@@ -113,9 +113,18 @@ if (typeof exported.renderTree === 'function') {
   // holding itself and its children, so the map shows the same ownership the tree
   // does; a lone face falls back to its kind, which is the most useful thing left
   // to say about it.
-  const tm = tree.props.children[0];
-  const edges = tree.props.children[1];
+  const densityBar = tree.props.children[0];
+  const tm = tree.props.children[1];
+  const edges = tree.props.children[2];
   const bands = tm.props.children;
+
+  // Row height is a visible switch, not a hidden grip: three buttons that set the
+  // cell floor, with the middle one selected when nothing has been chosen.
+  const densityButtons = densityBar.props.children;
+  equal('three densities are offered', densityButtons.length, 3);
+  equal('the first is compact', densityButtons[0].props.children, 'compact');
+  equal('normal is selected by default', densityButtons[1].props['data-active'], 'yes');
+  equal('and the tree carries the choice for the stylesheet', tree.props['data-density'], 'normal');
 
   equal('a family band, a kind band, and a found band', bands.length, 3);
   equal('a family band says it is one', bands[0].props['data-family'], 'yes');
@@ -159,13 +168,13 @@ if (typeof exported.renderTree === 'function') {
   // this size the map shows names only, and a tooltip cannot stay open while a
   // paragraph is read.
   const picked = exported.renderTree(listingText, 'wsl-ksh', () => {});
-  const pickedBands = picked.props.children[0].props.children;
+  const pickedBands = picked.props.children[1].props.children;
   equal(
     'the picked cell says so',
     pickedBands[0].props.children[1].props.children[1].props['data-selected'],
     'yes',
   );
-  const detail = picked.props.children[1];
+  const detail = picked.props.children[2];
   equal('a picked face gets a detail block', detail.props.className, 'dss-tm-detail');
   equal('the detail names the face and its kind', detail.props.children[0].props.children, 'wsl-ksh [shell]');
   equal('and carries the summary and the when:', detail.props.children.length, 3);
@@ -184,7 +193,7 @@ if (typeof exported.renderTree === 'function') {
     '',
     () => {},
   );
-  const weightedCells = weighted.props.children[0].props.children[0].props.children[1].props.children;
+  const weightedCells = weighted.props.children[1].props.children[0].props.children[1].props.children;
   check(
     'a face that ran gets more room than one that did not',
     Number(weightedCells[1].props.style.flex) > Number(weightedCells[0].props.style.flex),

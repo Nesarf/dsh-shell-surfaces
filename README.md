@@ -466,6 +466,20 @@ never got as far as a surface is not counted at all. A failure to write the file
 swallowed -- the count exists to make a picture better, and a picture is not worth
 failing a command over.
 
+### Two views of the same rows
+
+The **table** is the default. Six columns -- name, kind, status, runs, parent, summary
+-- with a header row that stays put while the body scrolls and re-sorts the rows when
+a column is clicked, zebra stripes, and numbers on the right in tabular figures.
+Thirty-five rows of six attributes is a table's job: columns line up, so comparing two
+faces is a glance instead of a re-read, and "which face runs most" is one click.
+Density owns the row padding here too, so compact / normal / roomy apply to both views.
+
+The **map** is the second view, one click away. It says the one thing a column cannot
+say as quickly -- how much of the picture a face occupies -- and it is still the place
+where a family band shows that a userland owns its shells. Both views read the same
+parsed rows, so neither can drift from the text.
+
 The box the picture sits in is the grip. Drag its corner and the treemap re-lays
 itself out at the new size -- row height and column width together, because the
 browser is doing the layout and nothing here computes a second one. It starts 380 px

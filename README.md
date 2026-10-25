@@ -5,8 +5,17 @@
 [![test](https://github.com/Nesarf/dsh-shell-surfaces/actions/workflows/test.yml/badge.svg)](https://github.com/Nesarf/dsh-shell-surfaces/actions/workflows/test.yml)
 [![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 
-`https://github.com/Nesarf/dsh-shell-surfaces` -- a DSH plugin, installed with
-`dsh plugin --profile <profile> add github:Nesarf/dsh-shell-surfaces`.
+`https://github.com/Nesarf/dsh-shell-surfaces` -- a DSH plugin.
+
+```
+dsh plugin --profile <profile> add github:Nesarf/dsh-shell-surfaces          # the tip of main
+dsh plugin --profile <profile> add github:Nesarf/dsh-shell-surfaces#v1.0.0  # a tag
+```
+
+The tag is the version that can be named. Installing from `main` gets whatever it holds
+today; installing a tag gets the commit that was decided on -- which is what "install the
+same thing again tomorrow" and "go back to what worked" both need. `v1.0.0` is the first
+such point: thirty-five faces, two views of the same rows, and sizes a reader can drag.
 
 The badge is the whole test workflow: the pure self-test, and a live check that
 runs one real command on every surface the runner has -- on Windows and on Linux --

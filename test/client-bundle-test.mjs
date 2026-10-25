@@ -109,23 +109,49 @@ if (typeof exported.renderTree === 'function') {
   ].join('\n');
   const tree = exported.renderTree(listingText);
 
-  // The treemap: family first. A face that owns children becomes a band of its own
-  // holding itself and its children, so the map shows the same ownership the tree
-  // does; a lone face falls back to its kind, which is the most useful thing left
-  // to say about it.
-  const densityBar = tree.props.children[0];
-  const tm = tree.props.children[1];
-  const edges = tree.props.children[2];
-  const bands = tm.props.children;
-
-  // Row height is a visible switch, not a hidden grip: three buttons that set the
-  // cell floor, with the middle one selected when nothing has been chosen.
-  const densityButtons = densityBar.props.children;
+  // The toolbar carries both choices: which view, and how tall a row is. The view
+  // defaults to the table because thirty-five rows of six attributes is a table's
+  // job, and columns that line up make comparing two faces a glance.
+  const bar = tree.props.children[0];
+  const viewButtons = bar.props.children[0].props.children;
+  const densityButtons = bar.props.children[1].props.children;
+  equal('two views are offered', viewButtons.length, 2);
+  equal('the table is first', viewButtons[0].props.children, 'table');
+  equal('and is selected by default', viewButtons[0].props['data-active'], 'yes');
   equal('three densities are offered', densityButtons.length, 3);
-  equal('the first is compact', densityButtons[0].props.children, 'compact');
   equal('normal is selected by default', densityButtons[1].props['data-active'], 'yes');
   equal('and the tree carries the choice for the stylesheet', tree.props['data-density'], 'normal');
 
+  // The table: a pinned header row that sorts, one row per face.
+  const table = tree.props.children[1];
+  equal('the default view is the table', table.props.className, 'dss-tbl-wrap');
+  const [thead, tbody] = table.props.children.props.children;
+  const headers = thead.props.children.props.children;
+  equal('six columns', headers.length, 6);
+  equal('the first column is name', headers[0].props.children, 'name');
+  equal('name is the default sort', headers[0].props['data-sorted'], 'yes');
+  equal('the runs column is numeric', headers[3].props['data-numeric'], 'yes');
+  const rows = tbody.props.children;
+  equal('one row per face', rows.length, 4);
+  equal(
+    'rows are sorted by name',
+    rows.map((row) => row.props.children[0].props.children).join(','),
+    'gone,wsl,wsl-ksh,wsl-zsh',
+  );
+  equal(
+    'an absent face says so in words',
+    rows[0].props.children[2].props.children,
+    'not on this machine',
+  );
+  equal('a face that never ran leaves the count blank', rows[1].props.children[3].props.children, '');
+
+  // The map is the other view: family first, a face that owns children keeping a
+  // band of its own, and area standing for how much the face is used.
+  const mapTree = exported.renderTree(listingText, '', () => {}, 'normal', () => {}, 'map');
+  const tm = mapTree.props.children[1];
+  const edges = mapTree.props.children[2];
+  const bands = tm.props.children;
+  equal('the map view is a treemap', tm.props.className, 'dss-tm');
   equal('a family band, a kind band, and a found band', bands.length, 3);
   equal('a family band says it is one', bands[0].props['data-family'], 'yes');
   equal('the family band is named after its root face', bands[0].props.children[0].props.children, 'wsl \u00b7 3');
@@ -167,7 +193,7 @@ if (typeof exported.renderTree === 'function') {
   // A cell can be picked, and the pick is what makes the explanation reachable: at
   // this size the map shows names only, and a tooltip cannot stay open while a
   // paragraph is read.
-  const picked = exported.renderTree(listingText, 'wsl-ksh', () => {});
+  const picked = exported.renderTree(listingText, 'wsl-ksh', () => {}, 'normal', () => {}, 'map');
   const pickedBands = picked.props.children[1].props.children;
   equal(
     'the picked cell says so',
@@ -192,6 +218,9 @@ if (typeof exported.renderTree === 'function') {
     ['a [shell] available', 'b [shell] available \u00b7 8 runs'].join('\n'),
     '',
     () => {},
+    'normal',
+    () => {},
+    'map',
   );
   const weightedCells = weighted.props.children[1].props.children[0].props.children[1].props.children;
   check(

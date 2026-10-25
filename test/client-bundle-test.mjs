@@ -228,6 +228,9 @@ if (typeof exported.renderTree === 'function') {
     Number(weightedCells[1].props.style.flex) > Number(weightedCells[0].props.style.flex),
   );
   equal('and the count rides the cell', weightedCells[1].props['data-runs'], '8');
+  // A narrow band can only show a prefix, so the full name and count wait on hover:
+  // "which face is this?" should not need a click.
+  equal('a cell names itself in full on hover', weightedCells[1].props.title, 'b \u00b7 8 runs');
 }
 
 // --- 3. apply registers the keyed row and its dictionaries ----------------------
@@ -398,8 +401,18 @@ equal('a preparing call is not expandable', preparing.props.expandable, false);
 // height and the column width adjustable without this file computing either.
 check('the picture box scrolls instead of shrinking', /\.dss-tree\{[^}]*overflow:auto/.test(source));
 check('and the box is the resize grip', /\.dss-tree\{[^}]*resize:both/.test(source));
-check('with a height the reader can grow', /\.dss-tree\{[^}]*height:380px/.test(source));
-check('the treemap fills whatever height it is given', /\.dss-tm\{[^}]*flex:1 1 auto/.test(source));
+// The map keeps a fixed canvas -- area is the point, and a squashed map says
+// nothing -- while the table takes its own height in its own scroll box. The table
+// used to be a flex share with `min-height:0`, which collapsed it to nothing: no
+// rows, and no scrollbar because there was no overflow to scroll.
+check('the map keeps a canvas', /\.dss-tm\{[^}]*height:320px/.test(source));
+// `resize` needs a starting size to drag from: with `height:auto` the grip did
+// nothing, which is what a screenshot showed (2026-10-25).
+check('the box starts at a size the grip can drag from', /\.dss-tree\{[^}]*height:380px/.test(source));
+check('a band with one face keeps room for a name', /\.dss-tm-group\{[^}]*min-width:88px/.test(source));
+check('the table has its own height floor', /\.dss-tbl-wrap\{[^}]*min-height:180px/.test(source));
+check('and its own scroll box', /\.dss-tbl-wrap\{[^}]*overflow:auto/.test(source));
+check('the table is wider than a narrow window, so the bar has something to scroll', /\.dss-tbl\{[^}]*min-width:640px/.test(source));
 check('the treemap keeps a minimum width', /\.dss-tm\{[^}]*min-width:760px/.test(source));
 check('the crossing graph keeps a minimum width', /\.dss-xy\{[^}]*min-width:460px/.test(source));
 

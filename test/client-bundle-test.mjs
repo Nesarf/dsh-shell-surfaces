@@ -150,9 +150,13 @@ if (typeof exported.renderTree === 'function') {
   const mapTree = exported.renderTree(listingText, '', () => {}, 'normal', () => {}, 'map');
   const tm = mapTree.props.children[1];
   const edges = mapTree.props.children[2];
-  const bands = tm.props.children;
+  const bands = tm.props.children.filter((node) => node !== null && node.props.className === 'dss-tm-group');
+  const grips = tm.props.children.filter((node) => node !== null && node.props.className === 'dss-tm-grip');
   equal('the map view is a treemap', tm.props.className, 'dss-tm');
   equal('a family band, a kind band, and a found band', bands.length, 3);
+  // One grip per boundary, not per band: the handle belongs to the line a reader is
+  // moving, and a hit area on every panel edge would steal clicks from the cells.
+  equal('one grip between each pair of bands', grips.length, bands.length - 1);
   equal('a family band says it is one', bands[0].props['data-family'], 'yes');
   equal('the family band is named after its root face', bands[0].props.children[0].props.children, 'wsl \u00b7 3');
   equal('its width is the family size', bands[0].props.style.flex, '3');
@@ -211,6 +215,28 @@ if (typeof exported.renderTree === 'function') {
   equal('found programs get a band of their own', foundBand.props['data-found'], 'yes');
   equal('the band says what it counts', foundBand.props.children[0].props.children, 'found \u00b7 1');
   equal('and each entry is marked as not-a-face', foundBand.props.children[1].props.children[0].props['data-found'], 'yes');
+
+  // A band a reader dragged keeps the width they gave it, and says so. Every band
+  // without an entry keeps the weight it earned, so a drag never rewrites the
+  // automatic layout.
+  const sized = exported.renderTree(
+    listingText,
+    '',
+    () => {},
+    'normal',
+    () => {},
+    'map',
+    () => {},
+    'name',
+    () => {},
+    { 'family:wsl': 240 },
+  );
+  const sizedBands = sized.props.children[1].props.children.filter(
+    (node) => node !== null && node.props.className === 'dss-tm-group',
+  );
+  equal('a dragged band keeps its width', sizedBands[0].props.style.flex, '0 0 240px');
+  equal('and says it was placed by hand', sizedBands[0].props['data-fixed'], 'yes');
+  equal('an untouched band still earns its width', sizedBands[1].props.style.flex, '1');
 
   // Weight: a face that has actually run gets more room than one that has not, and
   // the count travels with the cell so the detail block can say it.

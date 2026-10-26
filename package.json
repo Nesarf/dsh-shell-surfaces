@@ -1,6 +1,6 @@
 {
   "name": "dsh-shell-surfaces",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "license": "MIT",
   "description": "The machine's execution surfaces as one DSH tool: a WSL Linux userland, nushell's structured pipelines, the MSYS2 userland (bash/zsh/fish/brush), PowerShell itself, and a real console for interactive programs. Background jobs, timeout promotion, sandbox escalation and persistent sessions ride the same call, so a session stops reaching for another shell tool.",

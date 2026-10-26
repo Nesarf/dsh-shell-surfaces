@@ -23,10 +23,10 @@ then feeds those answers into the same table a person reads. A green badge means
 "the table and the argv shape still hold, and both platforms still answered", not
 just "the linter passed".
 
-One DSH tool for the execution surfaces this machine has -- thirty-two faces at
+One DSH tool for the execution surfaces this machine has -- thirty-five faces at
 the last measurement: a WSL Linux userland and the ten shells inside it, the MSYS2
-userland's six, four interpreters, both PowerShells, four window hosts, a real
-console, and nushell.
+userland's six, four interpreters, both PowerShells, four window hosts, two container
+runtimes, a remote destination, a real console, and nushell.
 
 It exists because a rule that is only written down is not a capability. The
 selection rules for these surfaces have been recorded for a while, but a session
@@ -526,8 +526,8 @@ subordinate to the tree without pretending to be a child.
 
 ## Why one tool and not seven
 
-Every registered tool spends part of the context on its description. Thirty-two
-tools would say the same thing thirty-two times. The selection rules -- which surface for a
+Every registered tool spends part of the context on its description. Thirty-five
+tools would say the same thing thirty-five times. The selection rules -- which surface for a
 structured pipe, which for a Linux-only tool, which for a program that waits for
 input -- live in this one description, and a session reads them exactly when it
 is choosing.
@@ -664,6 +664,7 @@ Each of these was measured on this machine, and each shapes the argv:
 | `lib/surfaces.js` | the table: paths, arguments, environments, and the absent-reason for each surface |
 | `lib/discover.js` | the scan: shell names, install roots and the WSL listing, each hit with its source |
 | `lib/runner.js` | argv construction, bounded output with spill, timeout classification |
+| `lib/usage.js` | how often each face has run: one counter per id, written through a rename, and a write that fails is swallowed |
 | `scripts/pty_runner.py` | the console: pywinpty, a reader thread, ANSI stripping, one JSON report |
 | `scripts/live-check.mjs` | runs one real command per surface through the plugin's own code path |
 | `scripts/probe-faces.mjs` | reads the surface TABLE and asks every present face what it is; a face added to the table is covered without being added here too |
@@ -671,6 +672,9 @@ Each of these was measured on this machine, and each shapes the argv:
 | `scripts/probe-posix.sh`, `scripts/probe-wsl.sh` | the POSIX and WSL probes, as files, because an inline command crosses quoting layers and a `$()` gets expanded by the wrong one |
 | `scripts/probe-table.mjs` | the probe's JSON as a markdown table, also written to `$GITHUB_STEP_SUMMARY` |
 | `scripts/pty-gate.ps1` | the interactive fixture: a `Read-Host` prompt for the pty case |
+| `scripts/pty-gate.sh` | the same fixture for a POSIX console: `read` needs a terminal, which is the whole point of a pty |
+| `scripts/minimize-window.ps1` | does the one thing no terminal program offers a flag for: minimises the window a surface opened, matched by PID or by a per-call marker in its command line |
+| `scripts/which-surfaces.mjs` | one line per surface, present or absent with the path looked for -- readable on its own, and CI's first step when the table cannot even load |
 | `test/surfaces-test.mjs` | the table, the argv shape, the tool contract, the prompt section |
 | `test/client-bundle-test.mjs` | the bundle format, the keyed row registration, and the sentence the row says in every call phase |
 
@@ -735,7 +739,7 @@ the kernel and a `/proc` count, nu returned a number through a structured pipeli
 msys returned its bash version and a package count, zsh its parameter-expansion
 result, fish its arithmetic result, brush an uppercased string, and pty answered a
 `Read-Host` prompt with `y` and printed the branch it took. That list has since
-grown to thirty-two faces -- which is exactly why the live check reads the table
+grown to thirty-five faces -- which is exactly why the live check reads the table
 instead of keeping a list of its own.
 
 ## Honest boundaries

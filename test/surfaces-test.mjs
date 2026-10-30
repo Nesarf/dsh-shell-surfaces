@@ -346,6 +346,22 @@ check(
 );
 check('no box-drawing character is left in the tree', !/[\u251c\u2514\u2502]/.test(treeText));
 
+// Capabilities are derived from kind, session and tags rather than written per face,
+// so they can be checked as a whole: a table where every face claimed to be
+// interactive would say nothing, and one where none did would be wrong. These
+// invariants are what make the field worth carrying instead of the prose.
+const capIds = (name) =>
+  Object.entries(resolvedTree)
+    .filter(([, spec]) => (spec.capabilities ?? {})[name] === true)
+    .map(([id]) => id);
+equal('only one face needs a real terminal', capIds('interactive').join(','), 'pty');
+equal('four faces open a window', capIds('gui').length, 4);
+equal('ten faces keep a session', capIds('session').length, 10);
+equal('the container runtimes are the throwaway ones', capIds('throwaway').sort().join(','), 'docker,podman');
+check('the MSYS2 userland translates paths', resolvedTree.msys.capabilities.pathTranslation === true);
+check('brush is the one shell there that refuses the translation', resolvedTree.brush.capabilities.pathTranslation === false);
+check('and wsl does not translate them either', resolvedTree.wsl.capabilities.pathTranslation === false);
+
 // A face can borrow another face without being its child: window faces run a Node
 // shim, and both container runtimes drive a daemon inside `wsl`. Those edges are
 // printed as their own section, because a parent link would claim ownership that

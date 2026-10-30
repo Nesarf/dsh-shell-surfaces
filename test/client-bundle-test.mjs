@@ -93,6 +93,7 @@ check('the factory exports the tree renderer', typeof exported.renderTree === 'f
 if (typeof exported.renderTree === 'function') {
   const listingText = [
     'wsl [userland] available',
+    '    \u00b7 caps: session stdin',
     '    \u00b7 a whole Linux userland',
     '    wsl-zsh [shell] available',
     '        \u00b7 zsh inside the distribution',
@@ -127,10 +128,11 @@ if (typeof exported.renderTree === 'function') {
   equal('the default view is the table', table.props.className, 'dss-tbl-wrap');
   const [thead, tbody] = table.props.children.props.children;
   const headers = thead.props.children.props.children;
-  equal('six columns', headers.length, 6);
+  equal('seven columns', headers.length, 7);
   equal('the first column is name', headers[0].props.children, 'name');
   equal('name is the default sort', headers[0].props['data-sorted'], 'yes');
   equal('the runs column is numeric', headers[3].props['data-numeric'], 'yes');
+  equal('and there is a column for capabilities', headers[4].props.children, 'caps');
   const rows = tbody.props.children;
   equal('one row per face', rows.length, 4);
   equal(
@@ -144,6 +146,10 @@ if (typeof exported.renderTree === 'function') {
     'not on this machine',
   );
   equal('a face that never ran leaves the count blank', rows[1].props.children[3].props.children, '');
+  // The capability line in the text becomes a column: a client that only ever sees
+  // the flattened string can still show this without a second channel.
+  equal('a face capability shows in its column', rows[1].props.children[4].props.children, 'session stdin');
+  equal('a face with no capability line keeps the column empty', rows[0].props.children[4].props.children, '');
 
   // The map is the other view: family first, a face that owns children keeping a
   // band of its own, and area standing for how much the face is used.

@@ -199,6 +199,27 @@ siblings) run the shell itself: the command is written to the distribution's
 stdin as `exec elvish -c '<command>'`, so the outer bash gets one word it passes
 through untouched. `wsl-bash` does not exist on purpose -- `wsl` already is bash.
 
+### Which version
+
+The table answers "is it here?" and "where is it?". `action="versions"` answers the
+third question: **which version**. Every present face that opted in with a
+`versionCommand` is asked in its own language, and the answers are cached beside the
+harness home (`shell-surfaces-versions.json`, or `DSH_VERSIONS_FILE`). `refresh: true`
+asks again; nothing else re-probes, because the cost is one process per face.
+
+Measured on this machine (2026-10-25): 20 of 35 surfaces answered, and no error came
+back dressed as a version. The three that needed more than `--version` each failed in
+its own way first, which is why they are written down here:
+
+* `dash` has no `--version` and no version variable. It is left blank.
+* `mksh` answers `-c 'echo $KSH_VERSION'` instead.
+* the MSYS2 `busybox` face runs `busybox.exe sh -c`, so inside it there is no
+  `busybox` on PATH to ask. The WSL one runs where `busybox` is on PATH, and answers.
+
+A face that cannot tell its version is left out rather than guessed at: `wt --version`
+opens a window, and an interpreter face would receive `--version` inside its `-c`,
+where it is a syntax error rather than a flag.
+
 ### The command travels on stdin, not as an argument
 
 `wsl.exe` recomposes the words it was handed into one command line and hands that

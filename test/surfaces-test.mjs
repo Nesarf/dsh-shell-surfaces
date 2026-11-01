@@ -929,6 +929,13 @@ try {
   /* no host checkout next to this one: the shape checks above still stand */
 }
 check('the result names stay inside the schema', Object.keys(listing).every((key) => key in tool.output.schema.properties));
+// The host refuses, rather than warns about, a result carrying a field the schema
+// does not declare -- "value.versions is not a declared property". The versions
+// action therefore needs its own declared slot, and this is what says so.
+check(
+  'the versions action has a declared place to put its answer',
+  tool.output.schema.properties.versions?.type === 'array',
+);
 
 // The distro probe hands its script over as a FILE, not on stdin.
 //

@@ -375,8 +375,11 @@ check('and wsl does not translate them either', resolvedTree.wsl.capabilities.pa
 // ones are the interesting cases -- each was a wrong answer that looked like a
 // version before it was a blank.
 check('a shell can be asked for its version', resolvedTree.msys.versionCommand.includes('--version'));
-equal('dash has no --version, so it is not asked', resolvedTree.dash.versionCommand, '');
-equal('the MSYS2 busybox cannot ask itself, because its own PATH has no busybox', resolvedTree.busybox.versionCommand, '');
+// dash refuses `--version` and has no version variable, so it is asked of the package
+// manager that installed it -- which is also the version that matters, because that
+// is the build the distribution shipped.
+check('dash is asked of its package manager', resolvedTree.dash.versionCommand.includes('pacman -Q dash'));
+equal('busybox prints its own banner', resolvedTree.busybox.versionCommand, 'busybox 2>&1');
 check('an interpreter is not asked, because --version inside -c is a syntax error', resolvedTree.python.versionCommand === '');
 check('a window face is not asked, because asking opens a window', resolvedTree.wt.versionCommand === '');
 

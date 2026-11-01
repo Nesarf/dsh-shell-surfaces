@@ -18,9 +18,29 @@
 import { spawn } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const jobFile = process.env.DSS_TABBY_JOB ?? 'E:\\DaShaoHuo\\cache\\tmp\\dss-tabby-job.json';
 const resultFile = `${jobFile}.result`;
+const closerScript = fileURLToPath(new URL('./close-tabby-dss.ps1', import.meta.url));
+
+// The tab this runs in belongs to dss's private instance and stays open after the
+// agent exits -- Tabby keeps a tab whose process has died. Closing it by hand on every
+// call was the alternative (reported 2026-11-01), so a detached helper closes that
+// instance two seconds later: long enough for the caller to read the result file, and
+// matched by `user-data-dir` so a Tabby the person opened is never touched.
+function closeOwnInstance() {
+  try {
+    const helper = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', closerScript], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+    helper.unref();
+  } catch {
+    /* a tab that stays open is not a failed command */
+  }
+}
 
 // One line per launch, so "Tabby never started the agent" and "the agent started
 // but could not read the job" are different sentences in a log instead of a
@@ -74,6 +94,7 @@ function main() {
       stderr: Buffer.concat(err).toString('utf8'),
       command,
     });
+    closeOwnInstance();
     process.exit(0);
   };
 

@@ -371,6 +371,15 @@ check('the MSYS2 userland translates paths', resolvedTree.msys.capabilities.path
 check('brush is the one shell there that refuses the translation', resolvedTree.brush.capabilities.pathTranslation === false);
 check('and wsl does not translate them either', resolvedTree.wsl.capabilities.pathTranslation === false);
 
+// Version probing: a face opts in with a command it can actually answer. The blank
+// ones are the interesting cases -- each was a wrong answer that looked like a
+// version before it was a blank.
+check('a shell can be asked for its version', resolvedTree.msys.versionCommand.includes('--version'));
+equal('dash has no --version, so it is not asked', resolvedTree.dash.versionCommand, '');
+equal('the MSYS2 busybox cannot ask itself, because its own PATH has no busybox', resolvedTree.busybox.versionCommand, '');
+check('an interpreter is not asked, because --version inside -c is a syntax error', resolvedTree.python.versionCommand === '');
+check('a window face is not asked, because asking opens a window', resolvedTree.wt.versionCommand === '');
+
 // A face can borrow another face without being its child: window faces run a Node
 // shim, and both container runtimes drive a daemon inside `wsl`. Those edges are
 // printed as their own section, because a parent link would claim ownership that
@@ -618,7 +627,10 @@ check(
   'every declared field type is a single type string',
   Object.values(tool.output.schema.properties).every((p) => typeof p.type === 'string'),
 );
-check('actions are run and surfaces', JSON.stringify(tool.parameters.properties.action.enum) === JSON.stringify(['run', 'surfaces']));
+check(
+  'actions are run, surfaces and versions',
+  JSON.stringify(tool.parameters.properties.action.enum) === JSON.stringify(['run', 'surfaces', 'versions']),
+);
 check(
   'the surface argument stays an open string, because the scan decides the ids',
   tool.parameters.properties.surface.type === 'string' && tool.parameters.properties.surface.enum === void 0,

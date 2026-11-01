@@ -930,6 +930,17 @@ try {
 }
 check('the result names stay inside the schema', Object.keys(listing).every((key) => key in tool.output.schema.properties));
 
+// The distro probe hands its script over as a FILE, not on stdin.
+//
+// `spawnSync(..., { input })` did not deliver stdin to `wsl.exe` from inside the
+// host process, while the same scan run from node found everything. The probe came
+// back as "a distribution with nothing in it", which read exactly like a machine
+// without WSL -- ten derived faces and both container runtimes gone (measured
+// 2026-11-01, on two host restarts and two refreshes).
+const discoverSource = readFileSync(join(import.meta.dirname, '..', 'lib', 'discover.js'), 'utf8');
+check('the distro probe hands its script over as a file', /toWslPath\(scriptPath\)/.test(discoverSource));
+check('and not on stdin, which the host process did not deliver', !/input:\s*script/.test(discoverSource));
+
 // --- report ---------------------------------------------------------------------
 
 console.log(`surfaces-test: ${passed} passed, ${failures.length} failed`);

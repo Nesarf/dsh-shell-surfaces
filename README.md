@@ -55,6 +55,8 @@ version: read the section you need, skip the rest.
 | does confinement apply here? | [The same sandbox as the built-in shell tools](#the-same-sandbox-as-the-built-in-shell-tools) |
 | can state survive between calls? | [Persistent sessions](#persistent-sessions) |
 | what else is installed on this machine? | [Finding this machine's shells](#finding-this-machines-shells) |
+| which version is each shell? | [Which version](#which-version) |
+| what can each face actually do? | [What each face can do](#what-each-face-can-do) |
 | run Python, Perl, JS, VBScript | [Interpreters are faces too](#interpreters-are-faces-too) |
 | reach another machine | [An ssh destination is a surface](#an-ssh-destination-is-a-surface) |
 | run it in a container | [A container is a face too](#a-container-is-a-face-too) |
@@ -219,6 +221,32 @@ its own way first, which is why they are written down here:
 A face that cannot tell its version is left out rather than guessed at: `wt --version`
 opens a window, and an interpreter face would receive `--version` inside its `-c`,
 where it is a syntax error rather than a flag.
+
+### What each face can do
+
+`action="surfaces"` carries a `capabilities` object per face, and the text prints it as
+a `caps:` note under each row. Six booleans, each answering a question a caller can act
+on instead of a question about the tool's nature:
+
+| capability | the question it answers |
+| --- | --- |
+| `session` | can a command keep state between two calls? |
+| `stdin` | can the command arrive on standard input (the session machinery needs it)? |
+| `interactive` | does it need a real terminal -- a program that reads a prompt? |
+| `gui` | does it open a window? |
+| `pathTranslation` | does `/tmp/x` become a Windows path? |
+| `throwaway` | is every call a fresh environment? |
+
+They are derived from `kind`, `session` and `tags` in one function, so a face added
+later inherits the right answers instead of forgetting them. The one exception is data
+rather than a special case in code: `brush` is the shell inside the MSYS2 userland that
+refuses the path translation its siblings perform, and its tag says so.
+
+Measured on this machine: ten faces keep a session, thirty take stdin, seven translate
+paths, four open a window, two are throwaway, and exactly **one** needs a real terminal
+(`pty`). Those numbers are assertions in `test/surfaces-test.mjs`, not a description --
+a table that grew a second interactive face would fail the test before it could mislead
+anyone reading it.
 
 ### The command travels on stdin, not as an argument
 
@@ -626,6 +654,12 @@ Two measured traps shaped it:
   hung the caller. The window is minimised after the fact instead, and **after the
   answer arrives**, because `bringToFront()` un-minimises it while the profile
   opens.
+* the window used to stay open after the answer, because Tabby keeps a tab whose
+  process has exited. It now closes itself: once the result is in hand the host runs
+  `scripts/close-tabby-dss.ps1`, and the script stops only instances whose command
+  line carries this tool's own `user-data-dir`, so a Tabby the person opened is never
+  touched. The agent asks for the same on its way out; the host's call is synchronous
+  on purpose, because a detached helper did not reach the instance in a measured run.
 
 `Tabby.exe profile dss` itself never returns (it blocks for the application's
 lifetime), so the launch is detached and the result file is the only thing waited
@@ -728,11 +762,11 @@ The live check covers the interpreters and the shells inside a distribution as
 well, and it opts **out** of the window faces by default: a routine run should
 not put four windows on someone's screen, so `wt`, `mintty`, `wezterm` and `tabby`
 are exercised only when `DSH_LIVE_TERMINALS=1` or when named on the command line.
-Measured on this machine: the default set is twenty-six surfaces (twenty-five
-answering, one skipped because its nushell cannot run on that distribution's
-glibc), and the four window faces answer `wt-ok` / `mintty-ok` / `wezterm-ok` /
-`tabby-ok` in 0.34 to 1.05 s once their instance is warm (tabby's first call pays
-for a cold start).
+The count is whatever this machine has, and the run says it: with the window faces
+included it answered for thirty-one surfaces and skipped one, whose nushell cannot
+run on that distribution's glibc. The four window faces answer `wt-ok` / `mintty-ok` /
+`wezterm-ok` / `tabby-ok` in 0.34 to 1.05 s once their instance is warm (tabby's first
+call pays for a cold start, and its window now closes itself afterwards).
 
 CI runs the self-test, and runs the probe on both a Windows and a Linux runner
 (the tables land in the run summary, so "which surfaces exist" is a record with

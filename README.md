@@ -5,6 +5,8 @@
 [![test](https://github.com/Nesarf/dsh-shell-surfaces/actions/workflows/test.yml/badge.svg)](https://github.com/Nesarf/dsh-shell-surfaces/actions/workflows/test.yml)
 [![licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 
+**English** | [简体中文](README.zh-CN.md)
+
 `https://github.com/Nesarf/dsh-shell-surfaces` -- a DSH plugin.
 
 ```

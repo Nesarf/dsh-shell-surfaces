@@ -49,6 +49,16 @@ shell_surfaces(action="run", surface="pty",  command="powershell -File install.p
 
 `surfaces` 的文字是一棵缩进的树：面那一行带 `[种类]`，它下面缩进一层的是它的说明行，以中点开头。树的最后有两段：`crossings`（哪些面协作、而不互相包含）与 `found, without a face of its own`（扫到了、但还没有独立条目的程序）。
 
+## PowerShell 在这里也是一个面
+
+「退回 pwsh」以前的意思是「离开这个工具、去用另一个」。`pwsh` 这个面把那段缝补上了：一条 PowerShell 命令在这里是一次普通调用，和其他面同一个形状，所以一个会话撞上别扭的面时，不必换工具才能把 PowerShell 的活干完。后台任务、超时提升、升级审批、持久会话在它身上一样有效 —— 这些是面的功能，不是某一个工具的特权。
+
+两个 PowerShell 都可寻址，而这件事需要两条表项而不是一条。`pwsh` 是 PowerShell 7，也是更好的默认；`powershell` 是随 Windows 自带的 5.1。把两者藏在同一个 `DSH_PWSH` 变量后面，意味着一台机器上两个都装了却只能碰到其中一个，而「这个脚本在 5.1 上还能跑吗」是两条表项能回答、一个变量回答不了的问题。
+
+这个工具不携带的唯一形状，是一个画着提示符或光标的终端会话。那是内置 `pwsh` 工具还站得住的地方；「命令是 PowerShell」不构成去那里的理由。
+
+面级别的失败也不是换工具的借口。某个面缺失、起不来、或者超时，工具会说出来，并指出下一步该打哪个调用（`action="surfaces"`）—— 那个调用仍然留在这个插件里。
+
 ## 为什么是一个工具，不是七个
 
 七种面放进七个工具，模型就得在调用之前先选对工具 —— 而选错的代价是一次失败的调用，且看不出是命令错了还是工具选错了。收进一个工具之后，选面是一个参数，错了能立刻看见是哪一步错。
@@ -97,6 +107,40 @@ shell_surfaces(action="run", surface="pty",  command="powershell -File install.p
 
 两个视图读的是同一份文字。客户端拿不到结构化数据 —— 宿主只把拍平的文本交给它，所以结构是从缩进里重新解析出来的。
 
+### 谁和谁协作
+
+树说的是「谁住在谁里面」，说不出「谁借用谁」。四个窗口面都借 node 垫片把结果带回来，两个容器面都借 wsl 里的守护进程，pty 面借 python 驱动控制台 —— 这些边单独成段：
+
+```
+· crossings: faces that work together rather than live inside each other
+    · wt — node: the answer comes back through scripts/dss-exec.mjs
+    · wezterm — cmd: each pane runs a cmd /k command line
+    · docker — wsl: the daemon runs inside the distribution; this face only drives it
+```
+
+它不画进树里，有两个理由。一条边可以连接任意深度的两个面 —— 一个在顶层的窗口和一个在顶层的解释器、一个容器和一个 userland —— 所以两行之间画线就得取决于那两行恰好落在哪儿，同一张表会被读出两种意思。而树木来的职责是归属：一条读起来像父子关系的线，正是这一段要避免的错误。`node` 不在 `wt` 里面，它被 `wt` 借用。
+
+### 一次调用长什么样
+
+一次 `run` 的结果是一行摘要加一段输出：
+
+```
+wsl: exit code 0 in 412 ms · 2 runs
+```
+
+左边是面和退出码，中间是耗时，右边是这个面累计跑过几次。输出被截断时多一行 `truncated`，并给出溢出文件的路径 —— 那份文件是完整的。后台起的那次显示 job id 而不是耗时。
+
+### 参数形状的由来
+
+每个面的 argv 不是随手写的，是从「那个程序怎么收命令」反推出来的：
+
+- shell 面是 `-c` 或 `-lc`。登录 shell 是故意的：不这样的话，`/tmp` 对这个进程和它的邻居会是两个不同的地方
+- 解释器是 `-c`、`-e`，或者 cscript 的「写临时文件再跑」
+- 容器面是 `run --rm <镜像> sh -c`
+- 窗口面没有 argv，是一套启动加回收：起进程、等结果文件、必要时关掉
+
+表里每个面旁边的注释写着它为什么是那个形状，以及当初是什么让它变成那样。改这张表之前值得先读那些注释。
+
 ## 会话
 
 给一次调用传 `session`，就保持一个长命的进程：当前目录、导出的变量、别的进程留下的文件，下一次调用还在。
@@ -131,9 +175,53 @@ shell_surfaces(action="run", surface="pty",  command="powershell -File install.p
 
 解释器是面，只是不是 shell：命令走 `-c`（python / node）、`-e`（perl），或者 VBScript 写成临时 `.vbs` 再跑。没有管道可以套在它们外面，管道属于代码里面。
 
-一个 ssh 目的地是一个面。主机名与用户写在 ssh config 里，这个面只负责把命令送过去。第一次连一台机器会做主机密钥检查，所以默认带 `StrictHostKeyChecking=accept-new`：新主机记下来，改过的主机仍然拒绝。
+### ssh 目的地
 
-容器也是面，而且分两种：一种每次调用起一个全新的一次性容器（alpine），另一种是**已经跑着的容器**（`<runtime> exec`）—— 后者能看见它自己的文件系统。
+一个 ssh 目的地是一个面。主机名与用户写在 ssh config 里，这个面只负责把命令送过去 —— `ssh <开关> <主机> <命令>` 本来就是「开关在前、命令在最后」的形状，和每个 shell 面一样，不需要新的机制。
+
+有两类条目是**故意丢掉的**，因为一个次次都失败的面比没有面更糟：
+
+- `User git` 的主机（这台机器的 `github.com` 就是这样）—— 那说的是 git 协议而不是 shell，另一端会拒绝别的一切
+- 通配符（`Host *.internal`）—— 那是一条匹配用的模式，不是一个能拨过去的目的地
+
+`BatchMode=yes` 不是偏好。没有它，一个要密码的主机会停在没人能敲的提示符上，调用读起来像卡住了；有了它，那种主机立刻失败并说出原因。
+
+`StrictHostKeyChecking=accept-new` 是同一段论证的另一半：第一次见的主机记下来，密钥**改过**的主机仍然拒绝。没有它，第一次连任何新目的地都会死在「Host key verification failed」上，读起来像一个坏掉的面，而不是一台还没被记录的主机。
+
+ssh 连命令都没能送达时答 255，结果里带一条说明：主机不可达、密钥被拒、主机密钥变了，都是面级别的问题，不是命令失败。
+
+### 搭一个 loopback 目的地，好让这个面能被测
+
+这台机器的 ssh 家族本来是空的（唯一的配置条目只走 git），而一个没人能调用的面是一个说法，不是能力。这里不需要第二台机器 —— 用发行版自带的 openssh 就能搭：
+
+```
+# 在发行版里，以 root 身份
+ssh-keygen -A                         # 这个镜像一个主机密钥都没有
+mkdir -p /run/sshd
+/usr/sbin/sshd -p 2222 -o ListenAddress=127.0.0.1 \
+               -o PubkeyAuthentication=yes -o PasswordAuthentication=no
+```
+
+然后在 Windows 这一侧生成一对专用密钥，公钥放进发行版用户的 `~/.ssh/authorized_keys`（700 / 600），`~/.ssh/config` 加：
+
+```
+Host dss-loopback
+  HostName 127.0.0.1
+  Port 2222
+  User nyarch
+  IdentityFile ~/.ssh/id_ed25519_loopback
+  IdentitiesOnly yes
+```
+
+`action="surfaces"` 随后就会报出 `ssh-dss-loopback [remote]`。
+
+### 容器
+
+容器也是面，而且分两种：一种每次调用起一个全新的一次性容器（alpine），另一种是**已经跑着的容器**（`<runtime> exec`）—— 后者能看见它自己的文件系统，前者什么都留不下。
+
+一次性那条路径没有会话，所以两次调用之间什么都不留；需要状态时该用 `wsl`。一台两个运行时都没有的机器，两个面都不报。
+
+两个运行时都在这台机器上，而且不可互换：`podman` 是 rootless，`docker` 不是。`DSH_PODMAN_IMAGE` 与 `DSH_DOCKER_IMAGE`（或者一个 `DSH_CONTAINER_IMAGE`）挑镜像，默认 `docker.io/library/alpine:latest`，第一次调用时拉取。
 
 ## 窗口面
 
